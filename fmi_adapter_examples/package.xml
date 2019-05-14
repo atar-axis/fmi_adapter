@@ -13,8 +13,9 @@
   <url type="repository">https://github.com/boschresearch/fmi_adapter</url>
 
   <buildtool_depend>catkin</buildtool_depend>
-  <exec_depend>fmi_adapter</exec_depend>
-  <exec_depend>roscpp</exec_depend>
+  <depend>fmi_adapter</depend>
+  <depend>roscpp</depend>
+  <depend>std_msgs</depend>
   <exec_depend>rqt_plot</exec_depend>
 
   <export>
