@@ -20,9 +20,8 @@
 #include <string>
 
 #include <ros/ros.h>
+#include <fmi_adapter/FMIAdapter.h>
 #include <std_msgs/Float64.h>
-
-#include "fmi_adapter/FMIAdapter.h"
 
 
 int main(int argc, char** argv) {
@@ -41,12 +40,14 @@ int main(int argc, char** argv) {
     throw std::runtime_error("Parameter 'delay_fmu_path' not specified!");
   }
 
-  fmi_adapter::FMIAdapter pendulumAdapter(pendulumFmuPath, ros::Duration(0.02));
-  fmi_adapter::FMIAdapter delayAdapter(delayFmuPath, ros::Duration(0.02));
-
+  ros::Duration stepSize(0.02);
+  fmi_adapter::FMIAdapter pendulumAdapter(pendulumFmuPath, stepSize);
   pendulumAdapter.setInitialValue("d", 0.001);
   pendulumAdapter.setInitialValue("l", 2.0);
+  fmi_adapter::FMIAdapter delayAdapter(delayFmuPath, stepSize);
   delayAdapter.setInitialValue("d", 5.5);
+
+  pendulumAdapter.setInitialValue("a", 1.3);
 
   ros::Time now = ros::Time::now();
   pendulumAdapter.exitInitializationMode(now);
@@ -55,7 +56,7 @@ int main(int argc, char** argv) {
   ros::Publisher anglePub = n.advertise<std_msgs::Float64>("angle", 1000);
   ros::Publisher delayedAnglePub = n.advertise<std_msgs::Float64>("delayed_angle", 1000);
 
-  ros::Timer timer = n.createTimer(ros::Duration(0.02), [&](const ros::TimerEvent& event) {
+  ros::Timer timer = n.createTimer(stepSize, [&](const ros::TimerEvent& event) {
     pendulumAdapter.doStepsUntil(event.current_expected);
     double angle = pendulumAdapter.getOutputValue("a");
     delayAdapter.setInputValue("x", event.current_expected, angle);
@@ -70,6 +71,4 @@ int main(int argc, char** argv) {
   });
 
   ros::spin();
-
-  return 0;
 }
