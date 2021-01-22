@@ -1,6 +1,6 @@
 <launch>
   <arg name="fmu_path" />
-  <node name="fmi_adapter_node" pkg="fmi_adapter" type="node">
+  <node name="fmi_adapter_node" pkg="fmi_adapter" type="node" output="screen">
     <param name="fmu_path" value="$(arg fmu_path)" />
   </node>
 </launch>

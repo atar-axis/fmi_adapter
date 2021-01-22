@@ -1,3 +1,7 @@
+/*
+ *   Copyright (c) 2021 Florian Dollinger - dollinger.florian@gmx.de
+ *   All rights reserved.
+ */
 // Copyright (c) 2018 - for information on the respective copyright owner
 // see the NOTICE file and/or the repository https://github.com/boschresearch/fmi_adapter.
 //
@@ -29,40 +33,77 @@ int main(int argc, char** argv) {
   ros::init(argc, argv, "fmi_adapter_node");
   ros::NodeHandle n("~");
 
+  // Check for a valid FMU
   std::string fmuPath;
   if (!n.getParam("fmu_path", fmuPath)) {
     ROS_ERROR("Parameter 'fmu_path' not specified!");
     throw std::runtime_error("Parameter 'fmu_path' not specified!");
   }
 
+  // Get the Step-Size
   double stepSizeAsDouble = 0.0;
   n.getParam("step_size", stepSizeAsDouble);
   ros::Duration stepSize(stepSizeAsDouble);
 
+
+  // Create the Adapter
+  ROS_DEBUG("Creating Adapter");
   fmi_adapter::FMIAdapter adapter(fmuPath, stepSize);
-  for (const std::string name : adapter.getParameterNames()) {
-    ROS_DEBUG("FMU has parameter '%s'", name.c_str());
+  ROS_DEBUG("Adapter created");
+
+  for (auto const& element : adapter.getParameterNamesAndBaseTypes()) {
+    ROS_DEBUG("FMU has parameter '%s'", element.first.c_str());
   }
+
+  // Init the Adapter
+  ROS_DEBUG("Init Start");
   adapter.initializeFromROSParameters(n);
 
+
+  ROS_DEBUG("Creating subscribers...");
+  // Create a map of all subscribers, accessible by their names
   std::map<std::string, ros::Subscriber> subscribers;
-  for (const std::string& name : adapter.getInputVariableNames()) {
-    std::string rosifiedName = fmi_adapter::FMIAdapter::rosifyName(name);
-    ros::Subscriber subscriber =
-        n.subscribe<std_msgs::Float64>(rosifiedName, 1000, [&adapter, name](const std_msgs::Float64::ConstPtr& msg) {
-          std::string myName = name;
+
+  // Iterate over all FMU Input Variables and subscribe the adapter inputs accordingly
+  for (auto const& element : adapter.getInputVariableNamesAndBaseTypes()) {
+
+    std::string rosifiedName = fmi_adapter::FMIAdapter::rosifyName(element.first);
+
+    if(element.second == fmi2_base_type_real) {
+
+      ros::Subscriber subscriber = n.subscribe<std_msgs::Float64>(
+        rosifiedName, 1000,
+        [&adapter, element](const std_msgs::Float64::ConstPtr& msg) {
+          std::string myName = element.first;
           adapter.setInputValue(myName, ros::Time::now(), msg->data);
-        });
-    subscribers[name] = subscriber;
+        }
+      );
+
+    subscribers[element.first] = subscriber;
+    }
   }
 
+  ROS_DEBUG("Creating publishers...");
+  // Create a map of all publishers, accessible by their names
   std::map<std::string, ros::Publisher> publishers;
-  for (const std::string& name : adapter.getOutputVariableNames()) {
-    std::string rosifiedName = fmi_adapter::FMIAdapter::rosifyName(name);
-    publishers[name] = n.advertise<std_msgs::Float64>(rosifiedName, 1000);
+
+  // Iterate over all FMU Output Variables and publish the adapter outputs accordingly
+  for (auto const& element : adapter.getOutputVariableNamesAndBaseTypes()) {
+    std::string rosifiedName = fmi_adapter::FMIAdapter::rosifyName(element.first);
+
+    if(element.second == fmi2_base_type_real) {
+      publishers[element.first] = n.advertise<std_msgs::Float64>(rosifiedName, 1000);
+    }
+
   }
 
+  ROS_DEBUG("Init done");
   adapter.exitInitializationMode(ros::Time::now());
+
+
+  // ---
+  // Spinning Loop
+  // ---
 
   double updatePeriod = 0.01;  // Default is 0.01s
   n.getParam("update_period", updatePeriod);
@@ -74,10 +115,12 @@ int main(int argc, char** argv) {
       ROS_INFO("Simulation time %f is greater than timer's time %f. Is your step size to large?",
                adapter.getSimulationTime().toSec(), event.current_expected.toSec());
     }
-    for (const std::string& name : adapter.getOutputVariableNames()) {
-      std_msgs::Float64 msg;
-      msg.data = adapter.getOutputValue(name);
-      publishers[name].publish(msg);
+    for (auto const& element : adapter.getOutputVariableNamesAndBaseTypes()) {
+      if(element.second == fmi2_base_type_real) {
+        std_msgs::Float64 msg;
+        msg.data = adapter.getOutputValue(element.first);
+        publishers[element.first].publish(msg);
+      }
     }
   });
 

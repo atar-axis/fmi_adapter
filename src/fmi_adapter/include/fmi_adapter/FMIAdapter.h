@@ -1,3 +1,7 @@
+/*
+ *   Copyright (c) 2021 Florian Dollinger - dollinger.florian@gmx.de
+ *   All rights reserved.
+ */
 // Copyright (c) 2018 - for information on the respective copyright owner
 // see the NOTICE file and/or the repository https://github.com/boschresearch/fmi_adapter.
 //
@@ -23,11 +27,15 @@
 
 #include <ros/ros.h>
 
+#include <FMI2/fmi2_enums.h>
+
 struct fmi_xml_context_t;
 typedef struct fmi_xml_context_t fmi_import_context_t;
 struct fmi2_import_t;
 struct fmi2_xml_variable_t;
 typedef struct fmi2_xml_variable_t fmi2_import_variable_t;
+
+
 struct jm_callbacks;
 
 namespace fmi_adapter {
@@ -60,29 +68,29 @@ class FMIAdapter {
 
   /// Returns all variables (including parameters, aliases, etc.) of the wrapped FMU in the FMI Library's
   /// internal representation.
-  std::vector<fmi2_import_variable_t*> getAllVariables() const;
+  std::vector<fmi2_import_variable_t*> getAllVariablesRaw() const;
 
   /// Returns all input variables of the wrapped FMU in the FMI Library's internal representation.
-  std::vector<fmi2_import_variable_t*> getInputVariables() const;
+  std::vector<fmi2_import_variable_t*> getInputVariablesRaw() const;
 
   /// Returns all output variables of the wrapped FMU in the FMI Library's internal representation.
-  std::vector<fmi2_import_variable_t*> getOutputVariables() const;
+  std::vector<fmi2_import_variable_t*> getOutputVariablesRaw() const;
 
   /// Returns all parameters of the wrapped FMU in the FMI Library's internal representation.
-  std::vector<fmi2_import_variable_t*> getParameters() const;
+  std::vector<fmi2_import_variable_t*> getParametersRaw() const;
 
   /// Returns the names of all variables (including parameters and aliases) of the wrapped FMU in the FMI Library's
   /// internal representation.
-  std::vector<std::string> getAllVariableNames() const;
+  std::map<std::string, fmi2_base_type_enu_t>  getAllVariableNamesAndBaseTypes() const;
 
   /// Returns the names of all input variables of the wrapped FMU in the FMI Library's internal representation.
-  std::vector<std::string> getInputVariableNames() const;
+  std::map<std::string, fmi2_base_type_enu_t>  getInputVariableNamesAndBaseTypes() const;
 
   /// Returns the names of all output variables of the wrapped FMU in the FMI Library's internal representation.
-  std::vector<std::string> getOutputVariableNames() const;
+  std::map<std::string, fmi2_base_type_enu_t>  getOutputVariableNamesAndBaseTypes() const;
 
   /// Returns the names of all parameters of the wrapped FMU in the FMI Library's internal representation.
-  std::vector<std::string> getParameterNames() const;
+  std::map<std::string, fmi2_base_type_enu_t>  getParameterNamesAndBaseTypes() const;
 
   /// Stores a value for the given variable to be considered by doStep*(..) at the given time of the FMU simulation.
   void setInputValue(fmi2_import_variable_t* variable, ros::Time time, double value);
