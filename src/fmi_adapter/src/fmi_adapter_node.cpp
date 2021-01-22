@@ -25,6 +25,7 @@
 
 #include <ros/ros.h>
 #include <std_msgs/Float64.h>
+#include <std_msgs/Bool.h>
 
 #include "fmi_adapter/FMIAdapter.h"
 
@@ -69,18 +70,41 @@ int main(int argc, char** argv) {
 
     std::string rosifiedName = fmi_adapter::FMIAdapter::rosifyName(element.first);
 
-    if(element.second == fmi2_base_type_real) {
+    ros::Subscriber subscriber;
 
-      ros::Subscriber subscriber = n.subscribe<std_msgs::Float64>(
+    switch(element.second) {
+    case fmi2_base_type_real:
+      subscriber = n.subscribe<std_msgs::Float64>(
         rosifiedName, 1000,
         [&adapter, element](const std_msgs::Float64::ConstPtr& msg) {
           std::string myName = element.first;
           adapter.setInputValue(myName, ros::Time::now(), msg->data);
         }
       );
+      break;
 
-    subscribers[element.first] = subscriber;
+    case fmi2_base_type_bool:
+      subscriber = n.subscribe<std_msgs::Bool>(
+        rosifiedName, 1000,
+        [&adapter, element](const std_msgs::Bool::ConstPtr& msg) {
+          std::string myName = element.first;
+          adapter.setInputValue(myName, ros::Time::now(), msg->data);
+        }
+      );
+      break;
+
+    case fmi2_base_type_int:
+      break;
+    case fmi2_base_type_str:
+      break;
+    case fmi2_base_type_enum:
+      break;
     }
+
+
+    if(subscriber)
+      subscribers[element.first] = subscriber;
+
   }
 
   ROS_DEBUG("Creating publishers...");
@@ -91,8 +115,19 @@ int main(int argc, char** argv) {
   for (auto const& element : adapter.getOutputVariableNamesAndBaseTypes()) {
     std::string rosifiedName = fmi_adapter::FMIAdapter::rosifyName(element.first);
 
-    if(element.second == fmi2_base_type_real) {
+    switch(element.second) {
+    case fmi2_base_type_real:
       publishers[element.first] = n.advertise<std_msgs::Float64>(rosifiedName, 1000);
+      break;
+    case fmi2_base_type_bool:
+      publishers[element.first] = n.advertise<std_msgs::Bool>(rosifiedName, 1000);
+      break;
+    case fmi2_base_type_int:
+      break;
+    case fmi2_base_type_str:
+      break;
+    case fmi2_base_type_enum:
+      break;
     }
 
   }
@@ -116,11 +151,39 @@ int main(int argc, char** argv) {
                adapter.getSimulationTime().toSec(), event.current_expected.toSec());
     }
     for (auto const& element : adapter.getOutputVariableNamesAndBaseTypes()) {
-      if(element.second == fmi2_base_type_real) {
-        std_msgs::Float64 msg;
-        msg.data = adapter.getOutputValue(element.first);
-        publishers[element.first].publish(msg);
+
+      switch(element.second) {
+      case fmi2_base_type_real:
+      {
+          std_msgs::Float64 msg;
+          msg.data = adapter.getOutputValue(element.first);
+          publishers[element.first].publish(msg);
+          break;
       }
+      case fmi2_base_type_bool:
+      {
+          std_msgs::Bool msg;
+          msg.data = adapter.getOutputValue(element.first);
+          publishers[element.first].publish(msg);
+          break;
+      }
+      case fmi2_base_type_int:
+      {
+        // TODO
+        break;
+      }
+      case fmi2_base_type_str:
+      {
+        // TODO
+        break;
+      }
+      case fmi2_base_type_enum:
+      {
+        // TODO
+        break;
+      }
+      }
+
     }
   });
 
