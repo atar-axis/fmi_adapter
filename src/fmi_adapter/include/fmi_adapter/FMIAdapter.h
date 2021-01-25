@@ -28,13 +28,16 @@
 #include <ros/ros.h>
 
 #include <FMI2/fmi2_enums.h>
+#include <FMI2/fmi2_functions.h>
+
+#include <boost/variant.hpp>
+
 
 struct fmi_xml_context_t;
 typedef struct fmi_xml_context_t fmi_import_context_t;
 struct fmi2_import_t;
 struct fmi2_xml_variable_t;
 typedef struct fmi2_xml_variable_t fmi2_import_variable_t;
-
 
 struct jm_callbacks;
 
@@ -93,11 +96,13 @@ class FMIAdapter {
   std::map<std::string, fmi2_base_type_enu_t>  getParameterNamesAndBaseTypes() const;
 
   /// Stores a value for the given variable to be considered by doStep*(..) at the given time of the FMU simulation.
-  void setInputValue(fmi2_import_variable_t* variable, ros::Time time, double value);
+  template <typename T>
+  void _setInputValueRaw(fmi2_import_variable_t* variable, ros::Time time, T value);
 
   /// Stores a value for the variable with the given name to be considered by doStep*(..) at the given
   /// time of the FMU simulation.
-  void setInputValue(std::string variableName, ros::Time time, double value);
+  template <typename T>
+  void setInputValue(std::string variableName, ros::Time time, T value);
 
   /// Returns the step-size used in the FMU simulation.
   ros::Duration getStepSize() const { return stepSize_; }
@@ -129,18 +134,22 @@ class FMIAdapter {
   ros::Time getSimulationTime() const;
 
   /// Returns the current value of the given output variable.
-  double getOutputValue(fmi2_import_variable_t* variable) const;
+  template <typename T>
+  T _getOutputValueRaw(fmi2_import_variable_t* variable) const;
 
   /// Returns the current value of the output variable with the given name.
-  double getOutputValue(const std::string& variableName) const;
+  template <typename T>
+  T getOutputValue(const std::string& variableName) const;
 
   /// Sets the given value of the given variable (or parameter or alias) as initial values. This function may be
   /// called only while isInInitializationMode() = true.
-  void setInitialValue(fmi2_import_variable_t* variable, double value);
+  void _setInitialValueRaw(fmi2_import_variable_t* variable, double value);
+  void _setInitialValueRaw(fmi2_import_variable_t* variable, int value);
+
 
   /// Sets the given value of the variable (or parameter or alias) with the given name as initial values. This
   /// function may be called only while isInInitializationMode() = true.
-  void setInitialValue(const std::string& variableName, double value);
+  // TODO: UNUSED: void setInitialValue(const std::string& variableName, double value);
 
   /// Tries to read inital values for each variable (including parameters and aliases) from the ROS parameter set.
   /// The function only considers private ROS parameters, i.e. parameters that have the node name as prefix.
@@ -191,11 +200,11 @@ class FMIAdapter {
   jm_callbacks* jmCallbacks_{nullptr};
 
   /// Stores the mapping from timestamps to variable values for the FMU simulation.
-  std::map<fmi2_import_variable_t*, std::map<ros::Time, double>> inputValuesByVariable_{};
+  std::map<fmi2_import_variable_t*, std::map<ros::Time, boost::variant<double, int>>> inputValuesByVariable_{};
 
   /// Performs one simulation step using the given step size. Argument and state w.r.t. initialization mode
   /// are not checked.
-  void doStepInternal(const ros::Duration& stepSize);
+  void _doStep(const ros::Duration& stepSize);
 
   /// Returns the current simulation time. The state w.r.t. initialization mode is not checked.
   ros::Time getSimulationTimeInternal() const { return ros::Time(fmuTime_) + fmuTimeOffset_; }

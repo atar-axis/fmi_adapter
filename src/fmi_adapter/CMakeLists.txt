@@ -1,6 +1,5 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.10)
 project(fmi_adapter)
-
 
 include(ExternalProject)
 externalproject_add(FMILibraryProject
@@ -26,6 +25,8 @@ find_package(catkin REQUIRED COMPONENTS
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
+find_package(Boost REQUIRED)
+
 
 
 ## Uncomment this if the package has a setup.py. This macro ensures
@@ -164,6 +165,7 @@ target_link_libraries(${PROJECT_NAME}
   dl
 )
 
+
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
@@ -223,14 +225,14 @@ install(DIRECTORY launch/
 #############
 
 ## Add gtest based cpp test target and link libraries
-if(CATKIN_ENABLE_TESTING)
-  file(GLOB_RECURSE myTestCppFiles "test/*.cpp")
-  set(GTEST_LIBRARY gtest)
-  find_package(rostest REQUIRED)
-  add_rostest_gtest("${PROJECT_NAME}_test" test/${PROJECT_NAME}.test ${myTestCppFiles})
-  target_include_directories("${PROJECT_NAME}_test" PRIVATE "test" SYSTEM PUBLIC ${catkin_INCLUDE_DIRS})
-  target_link_libraries("${PROJECT_NAME}_test" ${PROJECT_NAME} ${catkin_LIBRARIES} stdc++ pthread m)
-endif()
+# if(CATKIN_ENABLE_TESTING)
+#   file(GLOB_RECURSE myTestCppFiles "test/*.cpp")
+#   set(GTEST_LIBRARY gtest)
+#   find_package(rostest REQUIRED)
+#   add_rostest_gtest("${PROJECT_NAME}_test" test/${PROJECT_NAME}.test ${myTestCppFiles})
+#   target_include_directories("${PROJECT_NAME}_test" PRIVATE "test" SYSTEM PUBLIC ${catkin_INCLUDE_DIRS})
+#   target_link_libraries("${PROJECT_NAME}_test" ${PROJECT_NAME} ${catkin_LIBRARIES} stdc++ pthread m)
+# endif()
 
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
