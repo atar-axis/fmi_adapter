@@ -41,6 +41,9 @@ typedef struct fmi2_xml_variable_t fmi2_import_variable_t;
 
 struct jm_callbacks;
 
+typedef boost::variant<double, int32_t> variable_type;
+
+
 namespace fmi_adapter {
 
 /// An instance of this class wraps a FMU and allows to simulate it using the ROS time notion and standard C++ types.
@@ -96,13 +99,11 @@ class FMIAdapter {
   std::map<std::string, fmi2_base_type_enu_t>  getParameterNamesAndBaseTypes() const;
 
   /// Stores a value for the given variable to be considered by doStep*(..) at the given time of the FMU simulation.
-  template <typename T>
-  void _setInputValueRaw(fmi2_import_variable_t* variable, ros::Time time, T value);
+  void _setInputValueRaw(fmi2_import_variable_t* variable, ros::Time time, variable_type value);
 
   /// Stores a value for the variable with the given name to be considered by doStep*(..) at the given
   /// time of the FMU simulation.
-  template <typename T>
-  void setInputValue(std::string variableName, ros::Time time, T value);
+  void setInputValue(std::string variableName, ros::Time time, variable_type value);
 
   /// Returns the step-size used in the FMU simulation.
   ros::Duration getStepSize() const { return stepSize_; }
@@ -200,7 +201,7 @@ class FMIAdapter {
   jm_callbacks* jmCallbacks_{nullptr};
 
   /// Stores the mapping from timestamps to variable values for the FMU simulation.
-  std::map<fmi2_import_variable_t*, std::map<ros::Time, boost::variant<double, int>>> inputValuesByVariable_{};
+  std::map<fmi2_import_variable_t*, std::map<ros::Time, variable_type>> inputValuesByVariable_{};
 
   /// Performs one simulation step using the given step size. Argument and state w.r.t. initialization mode
   /// are not checked.

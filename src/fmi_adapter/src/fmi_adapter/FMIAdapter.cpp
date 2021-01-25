@@ -105,28 +105,28 @@ std::map<std::string, fmi2_base_type_enu_t> getVariablesFromFMU(
     fmi2_import_t* fmu,
     std::function<bool(fmi2_import_variable_t*)> filter = variableFilterAll
 ) {
-  ROS_DEBUG("Start getVariablesFromFMU");
+  //ROS_DEBUG("Start getVariablesFromFMU");
 
   assert(fmu);
-  ROS_DEBUG("fmu assert done");
+  //ROS_DEBUG("fmu assert done");
 
   std::map<std::string, fmi2_base_type_enu_t> result;
-  ROS_DEBUG("map creation done");
+  //ROS_DEBUG("map creation done");
 
   fmi2_import_variable_list_t* variableList = fmi2_import_get_variable_list(fmu, 0);
   const size_t variablesCount = fmi2_import_get_variable_list_size(variableList);
-  ROS_DEBUG("get fmi variables list and size done");
+  //ROS_DEBUG("get fmi variables list and size done");
 
   for (size_t index = 0; index < variablesCount; ++index) {
     fmi2_import_variable_t* variable = fmi2_import_get_variable(variableList, index);
-    ROS_DEBUG("get fmi variable done");
+    //ROS_DEBUG("get fmi variable done");
 
     if (filter(variable)) {
       std::string name = fmi2_import_get_variable_name(variable);
-      ROS_DEBUG("get fmi variable name done: %s", name.c_str());
+      //ROS_DEBUG("get fmi variable name done: %s", name.c_str());
       fmi2_base_type_enu_t type = fmi2_import_get_variable_base_type(variable);
-      ROS_DEBUG("get fmi variable type done: %s", fmi2_base_type_to_string(type));
-      ROS_DEBUG("adding variable %s of base type %s", name.c_str(), fmi2_base_type_to_string(type));
+      //ROS_DEBUG("get fmi variable type done: %s", fmi2_base_type_to_string(type));
+      //ROS_DEBUG("adding variable %s of base type %s", name.c_str(), fmi2_base_type_to_string(type));
 
       result[name] = type;
     }
@@ -134,7 +134,7 @@ std::map<std::string, fmi2_base_type_enu_t> getVariablesFromFMU(
 
   fmi2_import_free_variable_list(variableList);
 
-  ROS_DEBUG("End getVariablesFromFMU");
+  //ROS_DEBUG("End getVariablesFromFMU");
 
   return result;
 }
@@ -247,7 +247,7 @@ FMIAdapter::FMIAdapter(
 }
 
 /**
- * @brief Dectruction of aFMIAdapter::FMIAdapter object
+ * @brief Dectruction of a FMIAdapter::FMIAdapter object
  *
  */
 FMIAdapter::~FMIAdapter() {
@@ -372,28 +372,47 @@ void FMIAdapter::exitInitializationMode(ros::Time simulationTime) {
   for (fmi2_import_variable_t* variable : getInputVariablesRaw()) {  // TODO(Ralph) Avoid creation of std::vector here.
 
     // Creating a reference to the map of time and value for the current input-variable
-    std::map<ros::Time, boost::variant<double, int>>& inputValues = inputValuesByVariable_[variable];
+    std::map<ros::Time, variable_type>& inputValues = inputValuesByVariable_[variable];
 
     // If there is no value set or the time to begin with is set to a point earlier than those of the values,
-    // then set the at least the value for the time where the simulation starts
+    // then set at least the value for the time where the simulation starts
     if (inputValues.empty() || inputValues.begin()->first > simulationTime) {
       fmi2_value_reference_t valueReference = fmi2_import_get_variable_vr(variable);
 
-      fmi2_real_t value;
-      fmi2_import_get_real(fmu_, &valueReference, 1, &value);
+      variable_type value;
+      fmi2_base_type_enu_t type = fmi2_import_get_variable_base_type(variable);
+
+      switch(type) {
+      case fmi2_base_type_real:
+      {
+        double tmp = 0.0;
+        fmi2_import_get_real(fmu_, &valueReference, 1, &tmp);
+        value = tmp;
+        break;
+      }
+      case fmi2_base_type_int:
+      {
+        int32_t tmp = 0;
+        fmi2_import_get_integer(fmu_, &valueReference, 1, &tmp);
+        value = tmp;
+        break;
+      }
+      case fmi2_base_type_bool:
+      case fmi2_base_type_str:
+      case fmi2_base_type_enum:
+        break;
+      }
 
       inputValues[simulationTime] = value;
     }
   }
 }
 
-// TODO: double inside
 void FMIAdapter::_doStep(const ros::Duration& stepSize) {
-  ROS_DEBUG("%i", stepSize.toSec());
 
   for (fmi2_import_variable_t* variable : getInputVariablesRaw()) {  // TODO(Ralph) Avoid creation of std::vector here.
 
-    std::map<ros::Time, boost::variant<double, int>>& inputValues = inputValuesByVariable_[variable];
+    std::map<ros::Time, variable_type>& inputValues = inputValuesByVariable_[variable];
 
     assert(!inputValues.empty() && (inputValues.begin()->first - fmuTimeOffset_).toSec() <= fmuTime_);
     while (inputValues.size() >= 2 && (std::next(inputValues.begin())->first - fmuTimeOffset_).toSec() <= fmuTime_) {
@@ -401,15 +420,15 @@ void FMIAdapter::_doStep(const ros::Duration& stepSize) {
     }
     assert(!inputValues.empty() && (inputValues.begin()->first - fmuTimeOffset_).toSec() <= fmuTime_);
 
-    boost::variant<double, int> value = inputValues.begin()->second;
+    variable_type value = inputValues.begin()->second;
 
     /* TODO: Interpolation
     if (interpolateInput_ && inputValues.size() > 1) {
       double t0 = (inputValues.begin()->first - fmuTimeOffset_).toSec();
       double t1 = (std::next(inputValues.begin())->first - fmuTimeOffset_).toSec();
       double weight = (t1 - fmuTime_) / (t1 - t0);
-      boost::variant<double, int> x0 = value;
-      boost::variant<double, int> x1 = std::next(inputValues.begin())->second;
+      variable_type x0 = value;
+      variable_type x1 = std::next(inputValues.begin())->second;
       value = weight * x0 + (1.0 - weight) * x1;
     }
     */
@@ -419,11 +438,22 @@ void FMIAdapter::_doStep(const ros::Duration& stepSize) {
 
     switch(type) {
     case fmi2_base_type_real:
-      fmi2_import_set_real(fmu_, &valueReference, 1, &boost::get<double>(value));
+    {
+      // pass the value to the variable referenced by valueReference
+      ROS_INFO("1");
+      double val = boost::get<double>(value);
+      ROS_INFO("2");
+      fmi2_import_set_real(fmu_, &valueReference, 1, &val);
       break;
+    }
     case fmi2_base_type_int:
-      fmi2_import_set_integer(fmu_, &valueReference, 1, &boost::get<int>(value));
+    {
+      ROS_INFO("3");
+      int val = boost::get<int32_t>(value);
+      ROS_INFO("4");
+      fmi2_import_set_integer(fmu_, &valueReference, 1, &val);
       break;
+    }
     case fmi2_base_type_bool:
     case fmi2_base_type_str:
     case fmi2_base_type_enum:
@@ -493,33 +523,33 @@ ros::Time FMIAdapter::getSimulationTime() const {
 
 
 /**
- * @brief Set the a input variable at the given time to the given value
- * Note: This Function is currently only used internally
+ * @brief Set the value for a specific FMU input variable at a given time (e.g. now)
+ * This Function is currently used internally
  *
  * @param variable
  * @param time
  * @param value
  */
-template <typename T>
-void FMIAdapter::_setInputValueRaw(fmi2_import_variable_t* variable, ros::Time time, T value) {
+void FMIAdapter::_setInputValueRaw(fmi2_import_variable_t* variable, ros::Time time, variable_type value) {
   if (fmi2_import_get_causality(variable) != fmi2_causality_enu_input) {
     throw std::invalid_argument("Given variable is not an input variable!");
   }
 
+  std::string name = rosifyName(fmi2_import_get_variable_name(variable));
+  ROS_INFO("adding a new input value for variable %s", name.c_str());
   inputValuesByVariable_[variable].insert(std::make_pair(time, value));
 }
 
 /**
- * @brief Set the current input for a specific variables name
- * This function is called inside the nodes spinning function to
- * propagate the input
+ * @brief Set the value for a specific FMU input variable at a given time (e.g. now)
+ * This function is called in a callback of a subscription to the inputs of the wrapping node
+ * to propagate the values to the FMU
  *
  * @param variableName
  * @param time
  * @param value
  */
-template <typename T>
-void FMIAdapter::setInputValue(std::string variableName, ros::Time time, T value) {
+void FMIAdapter::setInputValue(std::string variableName, ros::Time time, variable_type value) {
   fmi2_import_variable_t* variable = fmi2_import_get_variable_by_name(fmu_, variableName.c_str());
   if (variable == nullptr) {
     throw std::invalid_argument("Unknown variable name!");
@@ -527,8 +557,6 @@ void FMIAdapter::setInputValue(std::string variableName, ros::Time time, T value
 
   _setInputValueRaw(variable, time, value);
 }
-template void FMIAdapter::setInputValue<>(std::string variableName, ros::Time time, double value);
-template void FMIAdapter::setInputValue<>(std::string variableName, ros::Time time, int value);
 
 
 
@@ -575,7 +603,7 @@ void fmi2_import_get_var(fmi2_import_t* fmu_, const fmi2_value_reference_t* valu
 template<>
 void fmi2_import_get_var<double>(fmi2_import_t* fmu_, const fmi2_value_reference_t* valueReference, size_t nvr, double* value)
 {
-  ROS_DEBUG("Setting a real/double variable");
+  //ROS_DEBUG("Setting a real/double variable");
   fmi2_import_get_real(fmu_, valueReference, nvr, value);
   return;
 }
@@ -583,7 +611,7 @@ void fmi2_import_get_var<double>(fmi2_import_t* fmu_, const fmi2_value_reference
 template<>
 void fmi2_import_get_var<int>(fmi2_import_t* fmu_, const fmi2_value_reference_t* valueReference, size_t nvr, int* value)
 {
-  ROS_DEBUG("Setting a int variable");
+  //ROS_DEBUG("Setting a int variable");
   fmi2_import_get_integer(fmu_, valueReference, nvr, value);
   return;
 }
@@ -691,7 +719,7 @@ void FMIAdapter::initializeFromROSParameters(const ros::NodeHandle& handle) {
       {
         int valueStorage = 0;
         if (handle.getParam(name, valueStorage)){
-          ROS_DEBUG("setting variable %s to its init value from ROS");
+          ROS_DEBUG("setting variable to its init value from ROS");
           _setInitialValueRaw(variable, valueStorage);
         }
       }
