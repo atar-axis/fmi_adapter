@@ -78,36 +78,6 @@ class FMIAdapter {
   /// Returns the default experiment step-size of the FMU of this instance.
   ros::Duration getDefaultExperimentStep() const;
 
-
-
-  // /// Returns all variables (including parameters, aliases, etc.) of the wrapped FMU in the FMI Library's
-  // /// internal representation.
-  // std::vector<fmi2_import_variable_t*> getAllVariablesRaw() const;
-
-  // /// Returns all input variables of the wrapped FMU in the FMI Library's internal representation.
-  // std::vector<fmi2_import_variable_t*> getInputVariablesRaw() const;
-
-  // /// Returns all output variables of the wrapped FMU in the FMI Library's internal representation.
-  // std::vector<fmi2_import_variable_t*> getOutputVariablesRaw() const;
-
-  // /// Returns all parameters of the wrapped FMU in the FMI Library's internal representation.
-  // std::vector<fmi2_import_variable_t*> getParametersRaw() const;
-
-  // /// Returns the names of all variables (including parameters and aliases) of the wrapped FMU in the FMI Library's
-  // /// internal representation.
-  // std::map<std::string, fmi2_base_type_enu_t>  getAllVariableNamesAndBaseTypes() const;
-
-  // /// Returns the names of all input variables of the wrapped FMU in the FMI Library's internal representation.
-  // std::map<std::string, fmi2_base_type_enu_t>  getInputVariableNamesAndBaseTypes() const;
-
-  // /// Returns the names of all output variables of the wrapped FMU in the FMI Library's internal representation.
-  // std::map<std::string, fmi2_base_type_enu_t>  getOutputVariableNamesAndBaseTypes() const;
-
-  // /// Returns the names of all parameters of the wrapped FMU in the FMI Library's internal representation.
-  // std::map<std::string, fmi2_base_type_enu_t>  getParameterNamesAndBaseTypes() const;
-
-
-
   /// Stores a value for the given variable to be considered by doStep*(..) at the given time of the FMU simulation.
   void _setInputValueRaw(fmi2_import_variable_t* variable, ros::Time time, variable_type value);
 

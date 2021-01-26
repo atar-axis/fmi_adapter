@@ -224,28 +224,6 @@ ros::Duration FMIAdapter::getDefaultExperimentStep() const {
   return ros::Duration(fmi2_import_get_default_experiment_step(fmu_));
 }
 
-
-
-// std::map<std::string, fmi2_base_type_enu_t> FMIAdapter::getAllVariableNamesAndBaseTypes() const {
-//   return getVariablesFromFMU(fmu_, variableFilterAll);
-// }
-
-// std::map<std::string, fmi2_base_type_enu_t> FMIAdapter::getInputVariableNamesAndBaseTypes() const {
-//   auto filter = std::bind(variableFilterByCausality, std::placeholders::_1, fmi2_causality_enu_input);
-//   return getVariablesFromFMU(fmu_, filter);
-// }
-
-// std::map<std::string, fmi2_base_type_enu_t> FMIAdapter::getOutputVariableNamesAndBaseTypes() const {
-//   auto filter = std::bind(variableFilterByCausality, std::placeholders::_1, fmi2_causality_enu_output);
-//   return getVariablesFromFMU(fmu_, filter);
-// }
-
-// std::map<std::string, fmi2_base_type_enu_t> FMIAdapter::getParameterNamesAndBaseTypes() const {
-//   auto filter = std::bind(variableFilterByCausality, std::placeholders::_1, fmi2_causality_enu_parameter);
-//   auto retVal = getVariablesFromFMU(fmu_, filter);
-//   return retVal;
-// }
-
 /**
  * @brief Exits the initialization mode
  * Moreover, starts the simulation of the wrapped FMU. Uses the given timestamp
@@ -575,7 +553,7 @@ void FMIAdapter::setInitValue_fmu(fmi2_import_variable_t* variable, fmi2_integer
 }
 
 
-// ? Where is it used? Nowhere?
+// ? UNUSED
 // void FMIAdapter::setInitialValue(const std::string& variableName, double value) {
 //   fmi2_import_variable_t* variable = fmi2_import_get_variable_by_name(fmu_, variableName.c_str());
 //   if (variable == nullptr) {

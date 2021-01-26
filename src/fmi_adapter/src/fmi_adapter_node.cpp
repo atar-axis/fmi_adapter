@@ -30,10 +30,6 @@
 
 #include "fmi_adapter/FMIAdapter.h"
 
-// bool test_filter(fmi2_import_variable_t* variable){
-//   return true;
-// }
-
 int main(int argc, char** argv) {
   ros::init(argc, argv, "fmi_adapter_node");
   ros::NodeHandle n("~");
