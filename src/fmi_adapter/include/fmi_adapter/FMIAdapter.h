@@ -25,12 +25,16 @@
 #include <utility>
 #include <vector>
 
+#include "FMIVariable.h"
+
 #include <ros/ros.h>
 
 #include <FMI2/fmi2_enums.h>
 #include <FMI2/fmi2_functions.h>
 
 #include <boost/variant.hpp>
+#include <boost/range/adaptor/filtered.hpp>
+
 
 
 struct fmi_xml_context_t;
@@ -42,6 +46,8 @@ typedef struct fmi2_xml_variable_t fmi2_import_variable_t;
 struct jm_callbacks;
 
 typedef boost::variant<double, int32_t> variable_type;
+
+
 
 
 namespace fmi_adapter {
@@ -72,31 +78,35 @@ class FMIAdapter {
   /// Returns the default experiment step-size of the FMU of this instance.
   ros::Duration getDefaultExperimentStep() const;
 
-  /// Returns all variables (including parameters, aliases, etc.) of the wrapped FMU in the FMI Library's
-  /// internal representation.
-  std::vector<fmi2_import_variable_t*> getAllVariablesRaw() const;
 
-  /// Returns all input variables of the wrapped FMU in the FMI Library's internal representation.
-  std::vector<fmi2_import_variable_t*> getInputVariablesRaw() const;
 
-  /// Returns all output variables of the wrapped FMU in the FMI Library's internal representation.
-  std::vector<fmi2_import_variable_t*> getOutputVariablesRaw() const;
+  // /// Returns all variables (including parameters, aliases, etc.) of the wrapped FMU in the FMI Library's
+  // /// internal representation.
+  // std::vector<fmi2_import_variable_t*> getAllVariablesRaw() const;
 
-  /// Returns all parameters of the wrapped FMU in the FMI Library's internal representation.
-  std::vector<fmi2_import_variable_t*> getParametersRaw() const;
+  // /// Returns all input variables of the wrapped FMU in the FMI Library's internal representation.
+  // std::vector<fmi2_import_variable_t*> getInputVariablesRaw() const;
 
-  /// Returns the names of all variables (including parameters and aliases) of the wrapped FMU in the FMI Library's
-  /// internal representation.
-  std::map<std::string, fmi2_base_type_enu_t>  getAllVariableNamesAndBaseTypes() const;
+  // /// Returns all output variables of the wrapped FMU in the FMI Library's internal representation.
+  // std::vector<fmi2_import_variable_t*> getOutputVariablesRaw() const;
 
-  /// Returns the names of all input variables of the wrapped FMU in the FMI Library's internal representation.
-  std::map<std::string, fmi2_base_type_enu_t>  getInputVariableNamesAndBaseTypes() const;
+  // /// Returns all parameters of the wrapped FMU in the FMI Library's internal representation.
+  // std::vector<fmi2_import_variable_t*> getParametersRaw() const;
 
-  /// Returns the names of all output variables of the wrapped FMU in the FMI Library's internal representation.
-  std::map<std::string, fmi2_base_type_enu_t>  getOutputVariableNamesAndBaseTypes() const;
+  // /// Returns the names of all variables (including parameters and aliases) of the wrapped FMU in the FMI Library's
+  // /// internal representation.
+  // std::map<std::string, fmi2_base_type_enu_t>  getAllVariableNamesAndBaseTypes() const;
 
-  /// Returns the names of all parameters of the wrapped FMU in the FMI Library's internal representation.
-  std::map<std::string, fmi2_base_type_enu_t>  getParameterNamesAndBaseTypes() const;
+  // /// Returns the names of all input variables of the wrapped FMU in the FMI Library's internal representation.
+  // std::map<std::string, fmi2_base_type_enu_t>  getInputVariableNamesAndBaseTypes() const;
+
+  // /// Returns the names of all output variables of the wrapped FMU in the FMI Library's internal representation.
+  // std::map<std::string, fmi2_base_type_enu_t>  getOutputVariableNamesAndBaseTypes() const;
+
+  // /// Returns the names of all parameters of the wrapped FMU in the FMI Library's internal representation.
+  // std::map<std::string, fmi2_base_type_enu_t>  getParameterNamesAndBaseTypes() const;
+
+
 
   /// Stores a value for the given variable to be considered by doStep*(..) at the given time of the FMU simulation.
   void _setInputValueRaw(fmi2_import_variable_t* variable, ros::Time time, variable_type value);
@@ -144,8 +154,8 @@ class FMIAdapter {
 
   /// Sets the given value of the given variable (or parameter or alias) as initial values. This function may be
   /// called only while isInInitializationMode() = true.
-  void _setInitialValueRaw(fmi2_import_variable_t* variable, double value);
-  void _setInitialValueRaw(fmi2_import_variable_t* variable, int value);
+  void setInitValue_fmu(fmi2_import_variable_t* variable, fmi2_real_t value);
+  void setInitValue_fmu(fmi2_import_variable_t* variable, fmi2_integer_t value);
 
 
   /// Sets the given value of the variable (or parameter or alias) with the given name as initial values. This
@@ -203,12 +213,45 @@ class FMIAdapter {
   /// Stores the mapping from timestamps to variable values for the FMU simulation.
   std::map<fmi2_import_variable_t*, std::map<ros::Time, variable_type>> inputValuesByVariable_{};
 
-  /// Performs one simulation step using the given step size. Argument and state w.r.t. initialization mode
+  /// Performs one simulation step usinvectorg the given step size. Argument and state w.r.t. initialization mode
   /// are not checked.
   void _doStep(const ros::Duration& stepSize);
 
   /// Returns the current simulation time. The state w.r.t. initialization mode is not checked.
   ros::Time getSimulationTimeInternal() const { return ros::Time(fmuTime_) + fmuTimeOffset_; }
+
+
+
+  // Internal FMU Variables
+  private:
+    std::vector<fmi2_import_variable_t*> cachedVariablesRaw_fmu{};
+    std::vector<FMIVariable> cachedVariablesInterpretedForRos_fmu{};
+    void cacheVariables_fmu();
+    void interpretCacheVariablesForRos();
+
+
+  public:
+    std::vector<FMIVariable> getCachedVariablesInterpretedForRos_fmu () const;
+    std::vector<fmi2_import_variable_t*> getCachedVariables_fmu () const;
+
+    // filter helpers
+    static bool variableFilterAll(__attribute__((unused)) fmi2_import_variable_t* variable);
+    static bool variableFilterByCausality(fmi2_import_variable_t* variable, fmi2_causality_enu_t causality);
+
+    static bool rawInput_filter(fmi2_import_variable_t* variable);
+    static bool rawOutput_filter(fmi2_import_variable_t* variable);
+    static bool rawParam_filter(fmi2_import_variable_t* variable);
+
+    static bool rosInput_filter(const FMIVariable& variable);
+    static bool rosOutput_filter(const FMIVariable& variable);
+    static bool rosParam_filter(const FMIVariable& variable);
+
+    // variable type conversion helpers
+    static fmi2_real_t convertRosToFmi(double value);
+    static fmi2_integer_t convertRosToFmi(int value);
+    static double convertFmiToRos(fmi2_real_t value);
+    static int convertFmiToRos(fmi2_integer_t value);
+
 };
 
 }  // namespace fmi_adapter

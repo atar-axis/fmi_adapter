@@ -56,89 +56,6 @@ bool canReadFromFile(const std::string& path) {
   }
 }
 
-
-bool variableFilterAll(__attribute__((unused)) fmi2_import_variable_t* variable) { return true; }
-
-bool variableFilterByCausality(fmi2_import_variable_t* variable, fmi2_causality_enu_t causality) {
-  return (fmi2_import_get_causality(variable) == causality);
-}
-
-/**
- * @brief Get the Variables From FMU object as raw
- * This helper functions returns all variables with a certain property defined by an optional filter.
- *
- * @param fmu
- * @param filter
- * @return std::vector<fmi2_import_variable_t*>
- */
-std::vector<fmi2_import_variable_t*> getVariablesFromFMURaw(
-    fmi2_import_t* fmu,
-    std::function<bool(fmi2_import_variable_t*)> filter = variableFilterAll
-) {
-  assert(fmu);
-
-  std::vector<fmi2_import_variable_t*> result;
-
-  fmi2_import_variable_list_t* variableList = fmi2_import_get_variable_list(fmu, 0);
-  const size_t variablesCount = fmi2_import_get_variable_list_size(variableList);
-  for (size_t index = 0; index < variablesCount; ++index) {
-    fmi2_import_variable_t* variable = fmi2_import_get_variable(variableList, index);
-    if (filter(variable)) {
-      result.push_back(variable);
-    }
-  }
-
-  fmi2_import_free_variable_list(variableList);
-
-  return result;
-}
-
-/**
- * @brief Get the Variables From FMU as <Name, Type> map
- * This helper functions returns all variable names with a certain property defined by an optional filter.
- *
- * @param fmu
- * @param filter
- * @return std::map<std::string, fmi2_base_type_enu_t>
- */
-std::map<std::string, fmi2_base_type_enu_t> getVariablesFromFMU(
-    fmi2_import_t* fmu,
-    std::function<bool(fmi2_import_variable_t*)> filter = variableFilterAll
-) {
-  //ROS_DEBUG("Start getVariablesFromFMU");
-
-  assert(fmu);
-  //ROS_DEBUG("fmu assert done");
-
-  std::map<std::string, fmi2_base_type_enu_t> result;
-  //ROS_DEBUG("map creation done");
-
-  fmi2_import_variable_list_t* variableList = fmi2_import_get_variable_list(fmu, 0);
-  const size_t variablesCount = fmi2_import_get_variable_list_size(variableList);
-  //ROS_DEBUG("get fmi variables list and size done");
-
-  for (size_t index = 0; index < variablesCount; ++index) {
-    fmi2_import_variable_t* variable = fmi2_import_get_variable(variableList, index);
-    //ROS_DEBUG("get fmi variable done");
-
-    if (filter(variable)) {
-      std::string name = fmi2_import_get_variable_name(variable);
-      //ROS_DEBUG("get fmi variable name done: %s", name.c_str());
-      fmi2_base_type_enu_t type = fmi2_import_get_variable_base_type(variable);
-      //ROS_DEBUG("get fmi variable type done: %s", fmi2_base_type_to_string(type));
-      //ROS_DEBUG("adding variable %s of base type %s", name.c_str(), fmi2_base_type_to_string(type));
-
-      result[name] = type;
-    }
-  }
-
-  fmi2_import_free_variable_list(variableList);
-
-  //ROS_DEBUG("End getVariablesFromFMU");
-
-  return result;
-}
-
 }  // namespace helpers
 
 
@@ -244,6 +161,10 @@ FMIAdapter::FMIAdapter(
     }
     ROS_INFO("No step-size argument given. Using default from FMU, which is %fs.", stepSize_.toSec());
   }
+
+  // caching the FMU variables once, just update them later on
+  cacheVariables_fmu();
+  interpretCacheVariablesForRos();
 }
 
 /**
@@ -304,47 +225,26 @@ ros::Duration FMIAdapter::getDefaultExperimentStep() const {
 }
 
 
-std::vector<fmi2_import_variable_t*> FMIAdapter::getAllVariablesRaw() const {
-  return helpers::getVariablesFromFMURaw(fmu_, helpers::variableFilterAll);
-}
 
-std::vector<fmi2_import_variable_t*> FMIAdapter::getInputVariablesRaw() const {
-  auto filter = std::bind(helpers::variableFilterByCausality, std::placeholders::_1, fmi2_causality_enu_input);
-  return helpers::getVariablesFromFMURaw(fmu_, filter);
-}
+// std::map<std::string, fmi2_base_type_enu_t> FMIAdapter::getAllVariableNamesAndBaseTypes() const {
+//   return getVariablesFromFMU(fmu_, variableFilterAll);
+// }
 
-std::vector<fmi2_import_variable_t*> FMIAdapter::getOutputVariablesRaw() const {
-  auto filter = std::bind(helpers::variableFilterByCausality, std::placeholders::_1, fmi2_causality_enu_output);
-  return helpers::getVariablesFromFMURaw(fmu_, filter);
-}
+// std::map<std::string, fmi2_base_type_enu_t> FMIAdapter::getInputVariableNamesAndBaseTypes() const {
+//   auto filter = std::bind(variableFilterByCausality, std::placeholders::_1, fmi2_causality_enu_input);
+//   return getVariablesFromFMU(fmu_, filter);
+// }
 
-std::vector<fmi2_import_variable_t*> FMIAdapter::getParametersRaw() const {
-  auto filter = std::bind(helpers::variableFilterByCausality, std::placeholders::_1, fmi2_causality_enu_parameter);
-  return helpers::getVariablesFromFMURaw(fmu_, filter);
-}
+// std::map<std::string, fmi2_base_type_enu_t> FMIAdapter::getOutputVariableNamesAndBaseTypes() const {
+//   auto filter = std::bind(variableFilterByCausality, std::placeholders::_1, fmi2_causality_enu_output);
+//   return getVariablesFromFMU(fmu_, filter);
+// }
 
-
-std::map<std::string, fmi2_base_type_enu_t> FMIAdapter::getAllVariableNamesAndBaseTypes() const {
-  return helpers::getVariablesFromFMU(fmu_, helpers::variableFilterAll);
-}
-
-std::map<std::string, fmi2_base_type_enu_t> FMIAdapter::getInputVariableNamesAndBaseTypes() const {
-  auto filter = std::bind(helpers::variableFilterByCausality, std::placeholders::_1, fmi2_causality_enu_input);
-  return helpers::getVariablesFromFMU(fmu_, filter);
-}
-
-std::map<std::string, fmi2_base_type_enu_t> FMIAdapter::getOutputVariableNamesAndBaseTypes() const {
-  auto filter = std::bind(helpers::variableFilterByCausality, std::placeholders::_1, fmi2_causality_enu_output);
-  return helpers::getVariablesFromFMU(fmu_, filter);
-}
-
-std::map<std::string, fmi2_base_type_enu_t> FMIAdapter::getParameterNamesAndBaseTypes() const {
-  ROS_DEBUG("Start getParameterNamesAndBaseTypes");
-  auto filter = std::bind(helpers::variableFilterByCausality, std::placeholders::_1, fmi2_causality_enu_parameter);
-  auto retVal = helpers::getVariablesFromFMU(fmu_, filter);
-  ROS_DEBUG("End getParameterNamesAndBaseTypes");
-  return retVal;
-}
+// std::map<std::string, fmi2_base_type_enu_t> FMIAdapter::getParameterNamesAndBaseTypes() const {
+//   auto filter = std::bind(variableFilterByCausality, std::placeholders::_1, fmi2_causality_enu_parameter);
+//   auto retVal = getVariablesFromFMU(fmu_, filter);
+//   return retVal;
+// }
 
 /**
  * @brief Exits the initialization mode
@@ -369,7 +269,7 @@ void FMIAdapter::exitInitializationMode(ros::Time simulationTime) {
   fmuTimeOffset_ = simulationTime - ros::Time(0.0);
   assert(fmuTime_ == 0.0);
 
-  for (fmi2_import_variable_t* variable : getInputVariablesRaw()) {  // TODO(Ralph) Avoid creation of std::vector here.
+  for (fmi2_import_variable_t* variable : cachedVariablesRaw_fmu | boost::adaptors::filtered(rawInput_filter)) {
 
     // Creating a reference to the map of time and value for the current input-variable
     std::map<ros::Time, variable_type>& inputValues = inputValuesByVariable_[variable];
@@ -410,7 +310,7 @@ void FMIAdapter::exitInitializationMode(ros::Time simulationTime) {
 
 void FMIAdapter::_doStep(const ros::Duration& stepSize) {
 
-  for (fmi2_import_variable_t* variable : getInputVariablesRaw()) {  // TODO(Ralph) Avoid creation of std::vector here.
+  for (fmi2_import_variable_t* variable : cachedVariablesRaw_fmu | boost::adaptors::filtered(rawInput_filter)) {
 
     std::map<ros::Time, variable_type>& inputValues = inputValuesByVariable_[variable];
 
@@ -440,17 +340,13 @@ void FMIAdapter::_doStep(const ros::Duration& stepSize) {
     case fmi2_base_type_real:
     {
       // pass the value to the variable referenced by valueReference
-      ROS_INFO("1");
       double val = boost::get<double>(value);
-      ROS_INFO("2");
       fmi2_import_set_real(fmu_, &valueReference, 1, &val);
       break;
     }
     case fmi2_base_type_int:
     {
-      ROS_INFO("3");
       int val = boost::get<int32_t>(value);
-      ROS_INFO("4");
       fmi2_import_set_integer(fmu_, &valueReference, 1, &val);
       break;
     }
@@ -536,7 +432,7 @@ void FMIAdapter::_setInputValueRaw(fmi2_import_variable_t* variable, ros::Time t
   }
 
   std::string name = rosifyName(fmi2_import_get_variable_name(variable));
-  ROS_INFO("adding a new input value for variable %s", name.c_str());
+  //ROS_INFO("adding a new input value for variable %s", name.c_str());
   inputValuesByVariable_[variable].insert(std::make_pair(time, value));
 }
 
@@ -568,7 +464,7 @@ void FMIAdapter::setInputValue(std::string variableName, ros::Time time, variabl
  * @param variable
  * @return double
  */
-// TODO: UNUSED
+// ? UNUSED
 // template <typename T>
 // T FMIAdapter::_getOutputValueRaw(fmi2_import_variable_t* variable) const {
 //   if (fmi2_import_get_causality(variable) != fmi2_causality_enu_output) {
@@ -660,7 +556,7 @@ template int FMIAdapter::getOutputValue<int>(const std::string& variableName) co
  * @param variable
  * @param value
  */
-void FMIAdapter::_setInitialValueRaw(fmi2_import_variable_t* variable, double value) {
+void FMIAdapter::setInitValue_fmu(fmi2_import_variable_t* variable, fmi2_real_t value) {
   if (!inInitializationMode_) {
     throw std::runtime_error("Initial values can be only set in initialization mode!");
   }
@@ -669,7 +565,7 @@ void FMIAdapter::_setInitialValueRaw(fmi2_import_variable_t* variable, double va
   fmi2_import_set_real(fmu_, &valueReference, 1, &value);
 }
 
-void FMIAdapter::_setInitialValueRaw(fmi2_import_variable_t* variable, int value) {
+void FMIAdapter::setInitValue_fmu(fmi2_import_variable_t* variable, fmi2_integer_t value) {
   if (!inInitializationMode_) {
     throw std::runtime_error("Initial values can be only set in initialization mode!");
   }
@@ -679,7 +575,7 @@ void FMIAdapter::_setInitialValueRaw(fmi2_import_variable_t* variable, int value
 }
 
 
-// TODO: Where is it used? Nowhere?
+// ? Where is it used? Nowhere?
 // void FMIAdapter::setInitialValue(const std::string& variableName, double value) {
 //   fmi2_import_variable_t* variable = fmi2_import_get_variable_by_name(fmu_, variableName.c_str());
 //   if (variable == nullptr) {
@@ -688,6 +584,7 @@ void FMIAdapter::_setInitialValueRaw(fmi2_import_variable_t* variable, int value
 
 //   setInitialValue(variable, value);
 // }
+
 
 /**
  * @brief Initializes the Adapter Node from ROS Parameters
@@ -698,29 +595,27 @@ void FMIAdapter::_setInitialValueRaw(fmi2_import_variable_t* variable, int value
  */
 void FMIAdapter::initializeFromROSParameters(const ros::NodeHandle& handle) {
 
-  for (fmi2_import_variable_t* variable : helpers::getVariablesFromFMURaw(fmu_)) {
+
+
+  for (fmi2_import_variable_t* variable : cachedVariablesRaw_fmu) {
 
     std::string name = rosifyName(fmi2_import_get_variable_name(variable));
     fmi2_base_type_enu_t type = fmi2_import_get_variable_base_type(variable);
 
-    // TODO: remove repetition
-
     switch(type) {
     case fmi2_base_type_real:
       {
-        double valueStorage = 0.0;
-        if (handle.getParam(name, valueStorage)){
-          ROS_DEBUG("setting variable %s to its init value from ROS");
-          _setInitialValueRaw(variable, valueStorage);
+        double RosNodeValueStorage = 0.0;
+        if (handle.getParam(name, RosNodeValueStorage)){
+          setInitValue_fmu(variable, convertRosToFmi(RosNodeValueStorage));
         }
       }
       break;
     case fmi2_base_type_int:
       {
-        int valueStorage = 0;
-        if (handle.getParam(name, valueStorage)){
-          ROS_DEBUG("setting variable to its init value from ROS");
-          _setInitialValueRaw(variable, valueStorage);
+        int RosNodeValueStorage = 0;
+        if (handle.getParam(name, RosNodeValueStorage)){
+          setInitValue_fmu(variable, convertRosToFmi(RosNodeValueStorage));
         }
       }
       break;
@@ -733,6 +628,107 @@ void FMIAdapter::initializeFromROSParameters(const ros::NodeHandle& handle) {
       break;
     }
   }
+}
+
+fmi2_real_t FMIAdapter::convertRosToFmi(double value){
+  return (fmi2_real_t) value;
+}
+
+fmi2_integer_t FMIAdapter::convertRosToFmi(int value){
+  return (fmi2_integer_t) value;
+}
+
+double FMIAdapter::convertFmiToRos(fmi2_real_t value){
+  return (double) value;
+}
+
+int FMIAdapter::convertFmiToRos(fmi2_integer_t value){
+  return (int) value;
+}
+
+
+
+/**
+ * @brief Get the Variables From FMU object as raw
+ * This helper functions returns all variables with a certain property defined by an optional filter.
+ *
+ */
+void FMIAdapter::cacheVariables_fmu()
+{
+  assert(fmu_);
+
+  cachedVariablesRaw_fmu.clear();
+
+  fmi2_import_variable_list_t* variableList = fmi2_import_get_variable_list(fmu_, 0);
+  const size_t variablesCount = fmi2_import_get_variable_list_size(variableList);
+
+  for (size_t index = 0; index < variablesCount; ++index) {
+    fmi2_import_variable_t* variable = fmi2_import_get_variable(variableList, index);
+    cachedVariablesRaw_fmu.push_back(variable);
+  }
+
+  fmi2_import_free_variable_list(variableList);
+
+  return;
+}
+
+void FMIAdapter::interpretCacheVariablesForRos()
+{
+  cachedVariablesInterpretedForRos_fmu.clear();
+
+  // iterate over all raw variables
+  for (auto const& element : cachedVariablesRaw_fmu) {
+    FMIVariable interpreted = FMIVariable(element);
+    cachedVariablesInterpretedForRos_fmu.push_back(interpreted);
+  }
+}
+
+
+
+std::vector<FMIVariable> FMIAdapter::getCachedVariablesInterpretedForRos_fmu () const
+{
+  assert(fmu_);
+  return cachedVariablesInterpretedForRos_fmu;
+}
+
+std::vector<fmi2_import_variable_t*> FMIAdapter::getCachedVariables_fmu () const {
+  return cachedVariablesRaw_fmu;
+}
+
+
+
+bool FMIAdapter::variableFilterByCausality(fmi2_import_variable_t* variable, fmi2_causality_enu_t causality) {
+  return (fmi2_import_get_causality(variable) == causality);
+}
+bool FMIAdapter::variableFilterAll(__attribute__((unused)) fmi2_import_variable_t* variable) {
+  return true;
+}
+
+
+bool FMIAdapter::rawInput_filter(fmi2_import_variable_t* variable){
+  return variableFilterByCausality(variable, fmi2_causality_enu_input);
+}
+
+bool FMIAdapter::rawOutput_filter(fmi2_import_variable_t* variable){
+  return variableFilterByCausality(variable, fmi2_causality_enu_output);
+}
+
+bool FMIAdapter::rawParam_filter(fmi2_import_variable_t* variable){
+  return variableFilterByCausality(variable, fmi2_causality_enu_parameter);
+}
+
+
+
+bool FMIAdapter::rosInput_filter(const FMIVariable& variable){
+  return variable.getCausalityRaw() == fmi2_causality_enu_input;
+}
+
+bool FMIAdapter::rosOutput_filter(const FMIVariable& variable){
+  return variable.getCausalityRaw() == fmi2_causality_enu_output;
+}
+
+bool FMIAdapter::rosParam_filter(const FMIVariable& variable){
+  return variable.getCausalityRaw() == fmi2_causality_enu_parameter;
 }
 
 }  // namespace fmi_adapter
