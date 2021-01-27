@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
   n.getParam("step_size", stepSizeAsDouble);
   ros::Duration stepSize(stepSizeAsDouble);
 
-  double updatePeriod = 0.01;  // TODO: Default is 0.01s (set back)
+  double updatePeriod = 0.01;  // Default is 0.01s
   n.getParam("update_period", updatePeriod);
 
 
@@ -60,18 +60,18 @@ int main(int argc, char** argv) {
   auto allVariablesInterpreted = adapter.getCachedVariablesInterpretedForRos_fmu();
 
   ROS_INFO("  > parameters:");
-  for (auto const& element : allVariablesInterpreted | boost::adaptors::filtered(adapter.rosParam_filter)) {
-    ROS_INFO("    > %s", element.getNameRaw().c_str());
+  for (auto const& element : allVariablesInterpreted | boost::adaptors::filtered(fmi_adapter::FMIBaseVariable::varParam_filter)) {
+    ROS_INFO("    > %s", element->getNameRaw().c_str());
   }
 
   ROS_INFO("  > inputs:");
-  for (auto const& element : allVariablesInterpreted | boost::adaptors::filtered(adapter.rosInput_filter)) {
-    ROS_INFO("    > %s", element.getNameRaw().c_str());
+  for (auto const& element : allVariablesInterpreted | boost::adaptors::filtered(fmi_adapter::FMIBaseVariable::varInput_filter)) {
+    ROS_INFO("    > %s", element->getNameRaw().c_str());
   }
 
   ROS_INFO("  > outputs:");
-  for (auto const& element : allVariablesInterpreted | boost::adaptors::filtered(adapter.rosOutput_filter)) {
-    ROS_INFO("    > %s", element.getNameRaw().c_str());
+  for (auto const& element : allVariablesInterpreted | boost::adaptors::filtered(fmi_adapter::FMIBaseVariable::varOutput_filter)) {
+    ROS_INFO("    > %s", element->getNameRaw().c_str());
   }
 
   // Init the Adapter
@@ -85,20 +85,18 @@ int main(int argc, char** argv) {
   std::map<std::string, ros::Subscriber> subscribers;
 
   // Iterate over all FMU Input Variables and create subscribers for the wrapping node accordingly
-  for (auto const& element : allVariablesInterpreted | boost::adaptors::filtered(adapter.rosInput_filter)) {
+  for (auto const& element : allVariablesInterpreted | boost::adaptors::filtered(fmi_adapter::FMIBaseVariable::varInput_filter)) {
 
-    std::string rosifiedName = element.getNameRos();
+    std::string rosifiedName = element->getNameRos();
 
     ros::Subscriber subscriber;
 
-    switch(element.getTypeRaw()) {
+    switch(element->getTypeRaw()) {
     case fmi2_base_type_real:
       subscriber = n.subscribe<std_msgs::Float64>(
         rosifiedName, 1000,
         [&adapter, element](const std_msgs::Float64::ConstPtr& msg) {
-          std::string myName = element.getNameRaw();
-          variable_type value = msg->data;
-          adapter.setInputValue(myName, ros::Time::now(), value);
+          adapter.setInputValue(element->getNameRaw(), ros::Time::now(), (double) msg->data);
         }
       );
       ROS_INFO("    > created new subscriber for double variable: %s", rosifiedName.c_str());
@@ -108,14 +106,19 @@ int main(int argc, char** argv) {
       subscriber = n.subscribe<std_msgs::Int32>(
         rosifiedName, 1000,
         [&adapter, element](const std_msgs::Int32::ConstPtr& msg) {
-          std::string myName = element.getNameRaw();
-          variable_type value = msg->data;
-          adapter.setInputValue(myName, ros::Time::now(), value);
+          adapter.setInputValue(element->getNameRaw(), ros::Time::now(), (int) msg->data);
         }
       );
       ROS_INFO("    > created new subscriber for int variable: %s", rosifiedName.c_str());
       break;
     case fmi2_base_type_bool:
+      subscriber = n.subscribe<std_msgs::Bool>(
+        rosifiedName, 1000,
+        [&adapter, element](const std_msgs::Bool::ConstPtr& msg) {
+          adapter.setInputValue(element->getNameRaw(), ros::Time::now(), (bool) (msg->data == 1 ? true : false));
+        }
+      );
+      ROS_INFO("    > created new subscriber for bool variable: %s", rosifiedName.c_str());
       break;
     case fmi2_base_type_str:
       break;
@@ -125,7 +128,7 @@ int main(int argc, char** argv) {
 
 
     if(subscriber)
-      subscribers[element.getNameRaw()] = subscriber;
+      subscribers[element->getNameRaw()] = subscriber;
   }
 
   ROS_INFO("  > Creating publishers...");
@@ -133,19 +136,21 @@ int main(int argc, char** argv) {
 
   // Iterate over all FMU Output Variables and create publishers for the wrapping node accordingly
 
-  for (auto const& element : allVariablesInterpreted | boost::adaptors::filtered(adapter.rosOutput_filter)) {
-    std::string rosifiedName = fmi_adapter::FMIAdapter::rosifyName(element.getNameRaw());
+  for (auto const& element : allVariablesInterpreted | boost::adaptors::filtered(fmi_adapter::FMIBaseVariable::varOutput_filter)) {
+    std::string rosifiedName = fmi_adapter::FMIAdapter::rosifyName(element->getNameRaw());
 
-    switch(element.getTypeRaw()) {
+    switch(element->getTypeRaw()) {
     case fmi2_base_type_real:
-      publishers[element.getNameRaw()] = n.advertise<std_msgs::Float64>(rosifiedName, 1000);
+      publishers[element->getNameRaw()] = n.advertise<std_msgs::Float64>(rosifiedName, 1000);
       ROS_INFO("    > created new publisher for double variable: %s", rosifiedName.c_str());
       break;
     case fmi2_base_type_int:
-      publishers[element.getNameRaw()] = n.advertise<std_msgs::Int32>(rosifiedName, 1000);
+      publishers[element->getNameRaw()] = n.advertise<std_msgs::Int32>(rosifiedName, 1000);
       ROS_INFO("    > created new publisher for int variable: %s", rosifiedName.c_str());
       break;
     case fmi2_base_type_bool:
+      publishers[element->getNameRaw()] = n.advertise<std_msgs::Bool>(rosifiedName, 1000);
+      ROS_INFO("    > created new publisher for bool variable: %s", rosifiedName.c_str());
       break;
     case fmi2_base_type_str:
       break;
@@ -176,35 +181,34 @@ int main(int argc, char** argv) {
     }
 
     // propagate the newly simulated output values
-    for (auto const& element : allVariablesInterpreted | boost::adaptors::filtered(adapter.rosOutput_filter)) {
+    for (auto const& element : allVariablesInterpreted | boost::adaptors::filtered(fmi_adapter::FMIBaseVariable::varOutput_filter)) {
 
-      switch(element.getTypeRaw()) {
+      auto value = element->getValue();
+
+      switch(element->getTypeRaw()) {
       case fmi2_base_type_real:
       {
         std_msgs::Float64 msg;
-        msg.data = adapter.getOutputValue<double>(element.getNameRaw());
-        publishers[element.getNameRaw()].publish(msg);
+        msg.data = boost::get<double>(value);
+        publishers[element->getNameRaw()].publish(msg);
         break;
       }
       case fmi2_base_type_int:
       {
         std_msgs::Int32 msg;
-        msg.data = adapter.getOutputValue<int>(element.getNameRaw());
-        publishers[element.getNameRaw()].publish(msg);
+        msg.data = boost::get<int>(value);
+        publishers[element->getNameRaw()].publish(msg);
         break;
       }
       case fmi2_base_type_bool:
       {
+        std_msgs::Bool msg;
+        msg.data = boost::get<bool>(value);
+        publishers[element->getNameRaw()].publish(msg);
         break;
       }
-      case fmi2_base_type_str:
-      {
+      default:
         break;
-      }
-      case fmi2_base_type_enum:
-      {
-        break;
-      }
       }
 
     }

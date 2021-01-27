@@ -7,28 +7,23 @@
 #include <fmilib.h>
 
 
+
 namespace fmi_adapter {
 
-FMIVariable::FMIVariable(
-  std::string rawName_,
-  fmi2_base_type_enu_t rawType_,
-  fmi2_causality_enu_t rawCausality_
-) : rawName(rawName_),
-    rawType(rawType_),
-    rawCausality(rawCausality_)
-{
+
+bool FMIBaseVariable::varInput_filter(std::shared_ptr<FMIBaseVariable> variable){
+  return variable->getCausalityRaw() == fmi2_causality_enu_input;
 }
 
-FMIVariable::FMIVariable(
-  fmi2_import_variable_t* element
-) : rawName(std::string(fmi2_import_get_variable_name(element))),
-    rawType(fmi2_import_get_variable_base_type(element)),
-    rawCausality(fmi2_import_get_causality(element))
-{
+bool FMIBaseVariable::varOutput_filter(std::shared_ptr<FMIBaseVariable> variable){
+  return variable->getCausalityRaw() == fmi2_causality_enu_output;
 }
 
+bool FMIBaseVariable::varParam_filter(std::shared_ptr<FMIBaseVariable> variable){
+  return variable->getCausalityRaw() == fmi2_causality_enu_parameter;
+}
 
-std::string FMIVariable::rosifyName(const std::string& rawName) const
+std::string FMIBaseVariable::rosifyName(const std::string& rawName) const
 {
   std::string result = rawName;
   for (size_t i = 0; i < result.size(); ++i) {
@@ -47,9 +42,57 @@ std::string FMIVariable::rosifyName(const std::string& rawName) const
   return result;
 }
 
-std::string FMIVariable::getNameRaw() const { return rawName; }
-fmi2_base_type_enu_t FMIVariable::getTypeRaw() const { return rawType; }
-fmi2_causality_enu_t FMIVariable::getCausalityRaw() const { return rawCausality; }
-std::string FMIVariable::getNameRos() const { return rosifyName(rawName); }
+ std::string FMIBaseVariable::getNameRaw() const { return rawName; }
+ fmi2_base_type_enu_t FMIBaseVariable::getTypeRaw() const { return rawType; }
+ fmi2_causality_enu_t FMIBaseVariable::getCausalityRaw() const { return rawCausality; }
+ std::string FMIBaseVariable::getNameRos() const { return rosifyName(rawName); }
+ fmi2_value_reference_t FMIBaseVariable::getValueReference() const { return valueReference; }
+
+
+FMIBaseVariable::FMIBaseVariable(fmi2_import_t* parent_fmu, fmi2_import_variable_t* element)
+: parent(parent_fmu),
+  valueReference(fmi2_import_get_variable_vr(element)),
+  rawName(std::string(fmi2_import_get_variable_name(element))),
+  rawType(fmi2_import_get_variable_base_type(element)),
+  rawCausality(fmi2_import_get_causality(element))
+{}
+
+valueVariantTypes FMIBaseVariable::getValue()
+{
+  if (rawCausality != fmi2_causality_enu_output) {
+    throw std::invalid_argument("Given variable is not an output variable!");
+  }
+
+  valueVariantTypes ret;
+
+  switch(rawType){
+    case fmi2_base_type_real:
+    {
+      fmi2_real_t value = 0.0;
+      fmi2_import_get_real(parent, &valueReference, 1, &value);
+      ret = (double) value;
+      break;
+    }
+    case fmi2_base_type_int:
+    {
+      fmi2_integer_t value = 1;
+      fmi2_import_get_integer(parent, &valueReference, 1, &value);
+      ret = (int) value;
+      break;
+    }
+    case fmi2_base_type_bool:
+    {
+      fmi2_boolean_t value;
+      fmi2_import_get_boolean(parent, &valueReference, 1, &value);
+      ret = (bool) (value == fmi2_true ? true : false);
+      // !rm: ROS_INFO("returning %d", (bool) (value == fmi2_true ? true : false));
+      break;
+    }
+    default:
+      break;
+  }
+
+  return ret;
+}
 
 }

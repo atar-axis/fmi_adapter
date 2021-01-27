@@ -33,6 +33,16 @@
 
 #include <fmilib.h>
 
+// !!!!!!!   !!!!!   !!!!!!    !!!!!
+//   !!!    !!! !!!  !!! !!!  !!! !!!
+//   !!!    !!! !!!  !!! !!!  !!! !!!
+//   !!!     !!!!!   !!!!!!    !!!!!
+
+// TODO: * Remove the internal Variable List cachedVariablesRaw_fmu,
+// TODO:   just use the FMIVariable vector instead in all functions like doStep
+// TODO: * Add fmi2_base_type_str and enum?
+
+
 namespace fmi_adapter {
 
 namespace helpers {
@@ -59,6 +69,30 @@ bool canReadFromFile(const std::string& path) {
 }  // namespace helpers
 
 
+// Conversion: ROS Parameter <-> FMI
+
+// unspecialized case: just cast it
+template <typename Tin, typename Tout>
+Tout FMIAdapter::convert(Tin value){
+  return (Tout) value;
+}
+// unspecialized cases: where casting doesn't work
+template <>
+fmi2_boolean_t FMIAdapter::convert<bool, fmi2_boolean_t>(bool value){
+  return value == true ? fmi2_true : fmi2_false;
+}
+template <>
+bool FMIAdapter::convert<fmi2_boolean_t, bool>(fmi2_boolean_t value){
+  return value == fmi2_true ? true : false;
+}
+template <>
+fmi2_boolean_t FMIAdapter::convert<uint8_t, fmi2_boolean_t>(uint8_t value){
+  return value == 1 ? fmi2_true : fmi2_false;
+}
+template <>
+uint8_t FMIAdapter::convert<fmi2_boolean_t, uint8_t>(fmi2_boolean_t value){
+  return value == fmi2_true ? 1 : 0;
+}
 
 /**
  * @brief Construction of a new FMIAdapter::FMIAdapter object
@@ -264,19 +298,25 @@ void FMIAdapter::exitInitializationMode(ros::Time simulationTime) {
       switch(type) {
       case fmi2_base_type_real:
       {
-        double tmp = 0.0;
+        fmi2_real_t tmp = 0.0;
         fmi2_import_get_real(fmu_, &valueReference, 1, &tmp);
-        value = tmp;
+        value = (double) tmp;
         break;
       }
       case fmi2_base_type_int:
       {
-        int32_t tmp = 0;
+        fmi2_integer_t tmp = 0;
         fmi2_import_get_integer(fmu_, &valueReference, 1, &tmp);
-        value = tmp;
+        value = (int) tmp;
         break;
       }
       case fmi2_base_type_bool:
+      {
+        fmi2_boolean_t tmp = fmi2_false;
+        fmi2_import_get_boolean(fmu_, &valueReference, 1, &tmp);
+        value = (bool) tmp == fmi2_true ? true : false;
+        break;
+      }
       case fmi2_base_type_str:
       case fmi2_base_type_enum:
         break;
@@ -319,17 +359,23 @@ void FMIAdapter::_doStep(const ros::Duration& stepSize) {
     case fmi2_base_type_real:
     {
       // pass the value to the variable referenced by valueReference
-      double val = boost::get<double>(value);
+      fmi2_real_t val = (double) boost::get<double>(value);
       fmi2_import_set_real(fmu_, &valueReference, 1, &val);
       break;
     }
     case fmi2_base_type_int:
     {
-      int val = boost::get<int32_t>(value);
+      fmi2_integer_t val = (int) boost::get<int32_t>(value);
       fmi2_import_set_integer(fmu_, &valueReference, 1, &val);
       break;
     }
     case fmi2_base_type_bool:
+    {
+      fmi2_boolean_t val = (bool) (boost::get<bool>(value) == true ? fmi2_true : fmi2_false);
+      //!rm: ROS_INFO("%d", (boost::get<bool>(value) == true ? fmi2_true : fmi2_false));
+      fmi2_import_set_boolean(fmu_, &valueReference, 1, &val);
+      break;
+    }
     case fmi2_base_type_str:
     case fmi2_base_type_enum:
       break;
@@ -432,66 +478,6 @@ void FMIAdapter::setInputValue(std::string variableName, ros::Time time, variabl
   _setInputValueRaw(variable, time, value);
 }
 
-
-template<typename T>
-void fmi2_import_get_var(fmi2_import_t* fmu_, const fmi2_value_reference_t* valueReference, size_t nvr, T* value)
-{
-  ROS_WARN("The current variable was not handled correctly");
-  return;
-}
-
-// Specializations, see: https://isocpp.org/wiki/faq/templates#template-specialization-piecemeal
-template<>
-void fmi2_import_get_var<double>(fmi2_import_t* fmu_, const fmi2_value_reference_t* valueReference, size_t nvr, double* value)
-{
-  //ROS_DEBUG("Setting a real/double variable");
-  fmi2_import_get_real(fmu_, valueReference, nvr, value);
-  return;
-}
-
-template<>
-void fmi2_import_get_var<int>(fmi2_import_t* fmu_, const fmi2_value_reference_t* valueReference, size_t nvr, int* value)
-{
-  //ROS_DEBUG("Setting a int variable");
-  fmi2_import_get_integer(fmu_, valueReference, nvr, value);
-  return;
-}
-
-/**
- * @brief Get the current output for a specific variables name
- * This function is called inside the nodes spinning function to
- * propagate the output
- *
- * @tparam T
- * @param variableName
- * @return T
- */
-template <typename T>
-T FMIAdapter::getOutputValue(const std::string& variableName) const {
-
-  fmi2_import_variable_t* variable = fmi2_import_get_variable_by_name(fmu_, variableName.c_str());
-  fmi2_value_reference_t valueReference = fmi2_import_get_variable_vr(variable);
-
-  if (variable == nullptr) {
-    throw std::invalid_argument("Unknown variable name!");
-  }
-
-  if (fmi2_import_get_causality(variable) != fmi2_causality_enu_output) {
-    throw std::invalid_argument("Given variable is not an output variable!");
-  }
-
-  T value;
-  fmi2_import_get_var<T>(fmu_, &valueReference, 1, &value);
-
-  return value;
-
-}
-template double FMIAdapter::getOutputValue<double>(const std::string& variableName) const;
-template int FMIAdapter::getOutputValue<int>(const std::string& variableName) const;
-
-
-
-
 /**
  * @brief Initialize the FMU variables to a given value
  *
@@ -540,8 +526,6 @@ void FMIAdapter::setInitValue_fmu(fmi2_import_variable_t* variable, fmi2_integer
  */
 void FMIAdapter::initializeFromROSParameters(const ros::NodeHandle& handle) {
 
-
-
   for (fmi2_import_variable_t* variable : cachedVariablesRaw_fmu) {
 
     std::string name = rosifyName(fmi2_import_get_variable_name(variable));
@@ -550,45 +534,32 @@ void FMIAdapter::initializeFromROSParameters(const ros::NodeHandle& handle) {
     switch(type) {
     case fmi2_base_type_real:
       {
-        double RosNodeValueStorage = 0.0;
-        if (handle.getParam(name, RosNodeValueStorage)){
-          setInitValue_fmu(variable, convertRosToFmi(RosNodeValueStorage));
+        double rosNode_valueStorage = 0.0;
+        if (handle.getParam(name, rosNode_valueStorage)){
+          setInitValue_fmu(variable, convert<double, fmi2_real_t>(rosNode_valueStorage));
         }
       }
       break;
     case fmi2_base_type_int:
       {
-        int RosNodeValueStorage = 0;
-        if (handle.getParam(name, RosNodeValueStorage)){
-          setInitValue_fmu(variable, convertRosToFmi(RosNodeValueStorage));
+        int rosNode_valueStorage = 0;
+        if (handle.getParam(name, rosNode_valueStorage)){
+          setInitValue_fmu(variable, convert<int, fmi2_integer_t>(rosNode_valueStorage));
         }
       }
       break;
     case fmi2_base_type_bool:
-          ROS_DEBUG("variables of type bool are currently not yet supported, cannot set");
-    case fmi2_base_type_str:
-          ROS_DEBUG("variables of type str are currently not yet supported, cannot set");
-    case fmi2_base_type_enum:
-          ROS_DEBUG("variables of type enum are currently not yet supported, cannot set");
+     {
+        bool rosNode_valueStorage = false;
+        if (handle.getParam(name, rosNode_valueStorage)){
+          setInitValue_fmu(variable, convert<bool, fmi2_boolean_t>(rosNode_valueStorage));
+        }
+      }
+      break;
+    default:
       break;
     }
   }
-}
-
-fmi2_real_t FMIAdapter::convertRosToFmi(double value){
-  return (fmi2_real_t) value;
-}
-
-fmi2_integer_t FMIAdapter::convertRosToFmi(int value){
-  return (fmi2_integer_t) value;
-}
-
-double FMIAdapter::convertFmiToRos(fmi2_real_t value){
-  return (double) value;
-}
-
-int FMIAdapter::convertFmiToRos(fmi2_integer_t value){
-  return (int) value;
 }
 
 
@@ -623,21 +594,16 @@ void FMIAdapter::interpretCacheVariablesForRos()
 
   // iterate over all raw variables
   for (auto const& element : cachedVariablesRaw_fmu) {
-    FMIVariable interpreted = FMIVariable(element);
-    cachedVariablesInterpretedForRos_fmu.push_back(interpreted);
+    cachedVariablesInterpretedForRos_fmu.push_back(std::make_shared<FMIBaseVariable>(fmu_, element));
   }
 }
 
 
 
-std::vector<FMIVariable> FMIAdapter::getCachedVariablesInterpretedForRos_fmu () const
+std::vector<std::shared_ptr<FMIBaseVariable>> FMIAdapter::getCachedVariablesInterpretedForRos_fmu () const
 {
   assert(fmu_);
   return cachedVariablesInterpretedForRos_fmu;
-}
-
-std::vector<fmi2_import_variable_t*> FMIAdapter::getCachedVariables_fmu () const {
-  return cachedVariablesRaw_fmu;
 }
 
 
@@ -662,18 +628,5 @@ bool FMIAdapter::rawParam_filter(fmi2_import_variable_t* variable){
   return variableFilterByCausality(variable, fmi2_causality_enu_parameter);
 }
 
-
-
-bool FMIAdapter::rosInput_filter(const FMIVariable& variable){
-  return variable.getCausalityRaw() == fmi2_causality_enu_input;
-}
-
-bool FMIAdapter::rosOutput_filter(const FMIVariable& variable){
-  return variable.getCausalityRaw() == fmi2_causality_enu_output;
-}
-
-bool FMIAdapter::rosParam_filter(const FMIVariable& variable){
-  return variable.getCausalityRaw() == fmi2_causality_enu_parameter;
-}
 
 }  // namespace fmi_adapter
