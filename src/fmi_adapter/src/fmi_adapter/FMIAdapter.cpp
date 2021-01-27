@@ -224,6 +224,7 @@ ros::Duration FMIAdapter::getDefaultExperimentStep() const {
   return ros::Duration(fmi2_import_get_default_experiment_step(fmu_));
 }
 
+
 /**
  * @brief Exits the initialization mode
  * Moreover, starts the simulation of the wrapped FMU. Uses the given timestamp
@@ -410,7 +411,6 @@ void FMIAdapter::_setInputValueRaw(fmi2_import_variable_t* variable, ros::Time t
   }
 
   std::string name = rosifyName(fmi2_import_get_variable_name(variable));
-  //ROS_INFO("adding a new input value for variable %s", name.c_str());
   inputValuesByVariable_[variable].insert(std::make_pair(time, value));
 }
 
@@ -431,39 +431,6 @@ void FMIAdapter::setInputValue(std::string variableName, ros::Time time, variabl
 
   _setInputValueRaw(variable, time, value);
 }
-
-
-
-
-/**
- * @brief Get the current output for a specific variables name
- * Note: This Function is currently only used internally
- *
- * @param variable
- * @return double
- */
-// ? UNUSED
-// template <typename T>
-// T FMIAdapter::_getOutputValueRaw(fmi2_import_variable_t* variable) const {
-//   if (fmi2_import_get_causality(variable) != fmi2_causality_enu_output) {
-//     throw std::invalid_argument("Given variable is not an output variable!");
-//   }
-
-//   fmi2_value_reference_t valueReference = fmi2_import_get_variable_vr(variable);
-
-//   T value;
-
-//   // TODO: UNUSED
-//   if (std::is_same<T, double>::value) {
-//     fmi2_import_get_real(fmu_, &valueReference, 1, &value);
-//   } else if (std::is_same<T, int>::value) {
-//     fmi2_import_get_integer(fmu_, &valueReference, 1, &value);
-//   } else if (std::is_same<T, bool>::value) {
-//     fmi2_import_get_boolean(fmu_, &valueReference, 1, &value);
-//   }
-
-//   return value;
-// }
 
 
 template<typename T>
@@ -553,7 +520,7 @@ void FMIAdapter::setInitValue_fmu(fmi2_import_variable_t* variable, fmi2_integer
 }
 
 
-// ? UNUSED
+// ? Where is it used? Nowhere?
 // void FMIAdapter::setInitialValue(const std::string& variableName, double value) {
 //   fmi2_import_variable_t* variable = fmi2_import_get_variable_by_name(fmu_, variableName.c_str());
 //   if (variable == nullptr) {

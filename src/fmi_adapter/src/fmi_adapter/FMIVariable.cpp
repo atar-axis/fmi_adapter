@@ -52,6 +52,4 @@ fmi2_base_type_enu_t FMIVariable::getTypeRaw() const { return rawType; }
 fmi2_causality_enu_t FMIVariable::getCausalityRaw() const { return rawCausality; }
 std::string FMIVariable::getNameRos() const { return rosifyName(rawName); }
 
-
-
 }

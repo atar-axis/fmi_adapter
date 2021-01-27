@@ -16,10 +16,10 @@ class FMIVariable {
 
   private:
     std::string rawName;
-    fmi2_base_type_enu_t rawType; // = fmi2_base_type_real
-    fmi2_causality_enu_t rawCausality; // = fmi2_causality_enu_unknown;
+    fmi2_base_type_enu_t rawType;
+    fmi2_causality_enu_t rawCausality;
 
-		std::string rosifyName(const std::string& rawName) const;
+	std::string rosifyName(const std::string& rawName) const;
 
   public:
 		FMIVariable(std::string, fmi2_base_type_enu_t, fmi2_causality_enu_t);

@@ -78,6 +78,7 @@ class FMIAdapter {
   /// Returns the default experiment step-size of the FMU of this instance.
   ros::Duration getDefaultExperimentStep() const;
 
+
   /// Stores a value for the given variable to be considered by doStep*(..) at the given time of the FMU simulation.
   void _setInputValueRaw(fmi2_import_variable_t* variable, ros::Time time, variable_type value);
 
