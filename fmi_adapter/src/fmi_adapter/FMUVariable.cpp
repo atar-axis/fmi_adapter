@@ -3,9 +3,8 @@
  *   All rights reserved.
  */
 
-#include "fmi_adapter/FMUVariable.h"
-#include <fmilib.h>
-
+#include <fmi_adapter/FMIAdapter.h>
+#include <fmi_adapter/FMUVariable.h>
 
 namespace fmi_adapter {
 
@@ -48,10 +47,11 @@ std::string FMUVariable::getNameRos() const { return rosifyName(rawName); }
 fmi2_value_reference_t FMUVariable::getValueReference() const { return valueReference; }
 
 
-FMUVariable::FMUVariable(fmi2_import_t* parent_fmu, fmi2_import_variable_t* element)
-    : variable(element), parent_fmu(parent_fmu), valueReference(fmi2_import_get_variable_vr(element)),
+FMUVariable::FMUVariable(fmi2_import_t* parent_fmu_passed, fmi2_import_variable_t* element)
+    : variable(element), valueReference(fmi2_import_get_variable_vr(element)),
       rawName(std::string(fmi2_import_get_variable_name(element))),
-      rawType(fmi2_import_get_variable_base_type(element)), rawCausality(fmi2_import_get_causality(element)) {}
+      rawType(fmi2_import_get_variable_base_type(element)), rawCausality(fmi2_import_get_causality(element)),
+      parent_fmu(parent_fmu_passed) {}
 
 valueVariantTypes FMUVariable::getValue() {
   // ! not really necessary and it is preventing reading it out internally (to deduce the type)

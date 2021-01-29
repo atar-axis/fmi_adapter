@@ -108,15 +108,6 @@ class FMU {
   /// Returns the current simulation time.
   ros::Time getSimulationTime() const;
 
-  /// Sets the given value of the given variable (or parameter or alias) as initial values. This function may be
-  /// called only while isInInitializationMode() = true.
-  void setInitValue_fmu(fmi2_import_variable_t* variable, fmi2_real_t value);
-  void setInitValue_fmu(fmi2_import_variable_t* variable, fmi2_integer_t value);
-
-  /// Sets the given value of the variable (or parameter or alias) with the given name as initial values. This
-  /// function may be called only while isInInitializationMode() = true.
-  // TODO: UNUSED: void setInitialValue(const std::string& variableName, double value);
-
   /// Tries to read inital values for each variable (including parameters and aliases) from the ROS parameter set.
   /// The function only considers private ROS parameters, i.e. parameters that have the node name as prefix.
   /// Note that ROS parameter names may use the characters [A-Za-z0-9_] only. Therefore, all other characters in an
@@ -129,6 +120,8 @@ class FMU {
   // variable type conversion helpers
   template <typename Tin, typename Tout>
   static Tout convert(Tin value);
+
+  fmi2_import_t* getRawFMU();
 
  private:
   /// Path of the FMU being wrapped by this instance.

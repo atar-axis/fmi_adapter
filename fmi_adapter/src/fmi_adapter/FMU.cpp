@@ -18,6 +18,7 @@
 // limitations under the License.
 
 #include "fmi_adapter/FMU.h"
+#include "fmi_adapter/FMIAdapter.h"
 
 #include <cstdlib>
 
@@ -40,6 +41,7 @@
 //   !!!     !!!!!   !!!!!!    !!!!!
 
 // TODO: * Add fmi2_base_type_str and enum?
+// TODO: * Add a more sophisticated master to connect more than one FMU
 
 
 namespace fmi_adapter {
@@ -456,5 +458,11 @@ std::vector<std::shared_ptr<FMUVariable>> FMU::getCachedVariables() const {
   assert(fmu_);
   return cachedVariables;
 }
+
+fmi2_import_t* FMU::getRawFMU() {
+  assert(fmu_);
+  return fmu_;
+}
+
 
 }  // namespace fmi_adapter
