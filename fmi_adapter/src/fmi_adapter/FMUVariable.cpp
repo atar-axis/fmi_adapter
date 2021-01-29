@@ -87,11 +87,11 @@ valueVariantTypes FMUVariable::getValue() {
   return ret;
 }
 
-// TODO: Do not pass the initMode but get it from the parent
-void FMUVariable::setValue(bool initMode, valueVariantTypes values) {
-  if (!initMode) {
-    throw std::runtime_error("Initial values can be only set in initialization mode!");
-  }
+void FMUVariable::setValue(valueVariantTypes values) {
+  // TODO: Do not pass the initMode but get it from the parent
+  // if (!initMode) {
+  //   throw std::runtime_error("Initial values can be only set in initialization mode!");
+  // }
 
   switch (rawType) {
     case fmi2_base_type_real: {

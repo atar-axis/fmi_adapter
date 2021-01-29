@@ -126,14 +126,6 @@ class FMU {
 
   std::vector<std::shared_ptr<FMUVariable>> getCachedVariablesInterpretedForRos_fmu() const;
 
-  // filter helpers
-  static bool variableFilterAll(__attribute__((unused)) fmi2_import_variable_t* variable);
-  static bool variableFilterByCausality(fmi2_import_variable_t* variable, fmi2_causality_enu_t causality);
-
-  static bool rawInput_filter(fmi2_import_variable_t* variable);
-  static bool rawOutput_filter(fmi2_import_variable_t* variable);
-  static bool rawParam_filter(fmi2_import_variable_t* variable);
-
   // variable type conversion helpers
   template <typename Tin, typename Tout>
   static Tout convert(Tin value);

@@ -52,7 +52,7 @@ class FMUVariable {
   static bool varParam_filter(std::shared_ptr<FMUVariable> variable);
 
   valueVariantTypes getValue();
-  void setValue(bool initMode, valueVariantTypes value);
+  void setValue(valueVariantTypes value);
 };
 
 }  // namespace fmi_adapter
