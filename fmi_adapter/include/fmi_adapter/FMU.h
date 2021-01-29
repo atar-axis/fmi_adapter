@@ -46,8 +46,6 @@ typedef struct fmi2_xml_variable_t fmi2_import_variable_t;
 
 struct jm_callbacks;
 
-typedef std::variant<double, int32_t, bool> variable_type;
-
 
 namespace fmi_adapter {
 
@@ -78,11 +76,11 @@ class FMU {
 
 
   /// Stores a value for the given variable to be considered by doStep*(..) at the given time of the FMU simulation.
-  void _setInputValueRaw(fmi2_import_variable_t* variable, ros::Time time, variable_type value);
+  void _setInputValueRaw(fmi2_import_variable_t* variable, ros::Time time, valueVariantTypes value);
 
   /// Stores a value for the variable with the given name to be considered by doStep*(..) at the given
   /// time of the FMU simulation.
-  void setInputValue(std::string variableName, ros::Time time, variable_type value);
+  void setInputValue(std::string variableName, ros::Time time, valueVariantTypes value);
 
   /// Returns the step-size used in the FMU simulation.
   ros::Duration getStepSize() const { return stepSize_; }
@@ -182,7 +180,7 @@ class FMU {
   jm_callbacks* jmCallbacks_{nullptr};
 
   /// Stores the mapping from timestamps to variable values for the FMU simulation.
-  std::map<fmi2_import_variable_t*, std::map<ros::Time, variable_type>> inputValuesByVariable_{};
+  std::map<fmi2_import_variable_t*, std::map<ros::Time, valueVariantTypes>> inputValuesByVariable_{};
 
   /// Performs one simulation step usinvectorg the given step size. Argument and state w.r.t. initialization mode
   /// are not checked.

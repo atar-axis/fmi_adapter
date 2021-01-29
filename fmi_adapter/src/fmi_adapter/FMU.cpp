@@ -275,42 +275,12 @@ void FMU::exitInitializationMode(ros::Time simulationTime) {
   fmuTimeOffset_ = simulationTime - ros::Time(0.0);
   assert(fmuTime_ == 0.0);
 
-  for (fmi2_import_variable_t* variable : cachedVariablesRaw_fmu | boost::adaptors::filtered(rawInput_filter)) {
-    // Creating a reference to the map of time and value for the current input-variable
-    std::map<ros::Time, variable_type>& inputValues = inputValuesByVariable_[variable];
-
-    // If there is no value set or the time to begin with is set to a point earlier than those of the values,
-    // then set at least the value for the time where the simulation starts
+  // TODO: What is it good for? Document!
+  for (auto variable :
+       cachedVariablesInterpretedForRos_fmu | boost::adaptors::filtered(fmi_adapter::FMUVariable::varInput_filter)) {
+    std::map<ros::Time, valueVariantTypes>& inputValues = inputValuesByVariable_[variable->getVariablePointerRaw()];
     if (inputValues.empty() || inputValues.begin()->first > simulationTime) {
-      fmi2_value_reference_t valueReference = fmi2_import_get_variable_vr(variable);
-
-      variable_type value;
-      fmi2_base_type_enu_t type = fmi2_import_get_variable_base_type(variable);
-
-      switch (type) {
-        case fmi2_base_type_real: {
-          fmi2_real_t tmp = 0.0;
-          fmi2_import_get_real(fmu_, &valueReference, 1, &tmp);
-          value = (double)tmp;
-          break;
-        }
-        case fmi2_base_type_int: {
-          fmi2_integer_t tmp = 0;
-          fmi2_import_get_integer(fmu_, &valueReference, 1, &tmp);
-          value = (int)tmp;
-          break;
-        }
-        case fmi2_base_type_bool: {
-          fmi2_boolean_t tmp = fmi2_false;
-          fmi2_import_get_boolean(fmu_, &valueReference, 1, &tmp);
-          value = (bool)tmp == fmi2_true ? true : false;
-          break;
-        }
-        case fmi2_base_type_str:
-        case fmi2_base_type_enum:
-          break;
-      }
-
+      auto value = variable->getValue();
       inputValues[simulationTime] = value;
     }
   }
@@ -318,7 +288,7 @@ void FMU::exitInitializationMode(ros::Time simulationTime) {
 
 void FMU::_doStep(const ros::Duration& stepSize) {
   for (fmi2_import_variable_t* variable : cachedVariablesRaw_fmu | boost::adaptors::filtered(rawInput_filter)) {
-    std::map<ros::Time, variable_type>& inputValues = inputValuesByVariable_[variable];
+    std::map<ros::Time, valueVariantTypes>& inputValues = inputValuesByVariable_[variable];
 
     assert(!inputValues.empty() && (inputValues.begin()->first - fmuTimeOffset_).toSec() <= fmuTime_);
     while (inputValues.size() >= 2 && (std::next(inputValues.begin())->first - fmuTimeOffset_).toSec() <= fmuTime_) {
@@ -326,15 +296,15 @@ void FMU::_doStep(const ros::Duration& stepSize) {
     }
     assert(!inputValues.empty() && (inputValues.begin()->first - fmuTimeOffset_).toSec() <= fmuTime_);
 
-    variable_type value = inputValues.begin()->second;
+    valueVariantTypes value = inputValues.begin()->second;
 
     /* TODO: Interpolation
     if (interpolateInput_ && inputValues.size() > 1) {
       double t0 = (inputValues.begin()->first - fmuTimeOffset_).toSec();
       double t1 = (std::next(inputValues.begin())->first - fmuTimeOffset_).toSec();
       double weight = (t1 - fmuTime_) / (t1 - t0);
-      variable_type x0 = value;
-      variable_type x1 = std::next(inputValues.begin())->second;
+      valueVariantTypes x0 = value;
+      valueVariantTypes x1 = std::next(inputValues.begin())->second;
       value = weight * x0 + (1.0 - weight) * x1;
     }
     */
@@ -356,7 +326,6 @@ void FMU::_doStep(const ros::Duration& stepSize) {
       }
       case fmi2_base_type_bool: {
         fmi2_boolean_t val = (bool)(std::get<bool>(value) == true ? fmi2_true : fmi2_false);
-        //! rm: ROS_INFO("%d", (std::get<bool>(value) == true ? fmi2_true : fmi2_false));
         fmi2_import_set_boolean(fmu_, &valueReference, 1, &val);
         break;
       }
@@ -434,7 +403,7 @@ ros::Time FMU::getSimulationTime() const {
  * @param time
  * @param value
  */
-void FMU::_setInputValueRaw(fmi2_import_variable_t* variable, ros::Time time, variable_type value) {
+void FMU::_setInputValueRaw(fmi2_import_variable_t* variable, ros::Time time, valueVariantTypes value) {
   if (fmi2_import_get_causality(variable) != fmi2_causality_enu_input) {
     throw std::invalid_argument("Given variable is not an input variable!");
   }
@@ -452,7 +421,7 @@ void FMU::_setInputValueRaw(fmi2_import_variable_t* variable, ros::Time time, va
  * @param time
  * @param value
  */
-void FMU::setInputValue(std::string variableName, ros::Time time, variable_type value) {
+void FMU::setInputValue(std::string variableName, ros::Time time, valueVariantTypes value) {
   fmi2_import_variable_t* variable = fmi2_import_get_variable_by_name(fmu_, variableName.c_str());
   if (variable == nullptr) {
     throw std::invalid_argument("Unknown variable name!");
