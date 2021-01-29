@@ -56,7 +56,7 @@ int main(int argc, char** argv) {
   fmi_adapter::FMU adapter(fmuPath, stepSize);
 
 
-  auto allVariablesInterpreted = adapter.getCachedVariablesInterpretedForRos_fmu();
+  auto allVariablesInterpreted = adapter.getCachedVariables();
 
   ROS_INFO("  > parameters:");
   for (auto const& element :

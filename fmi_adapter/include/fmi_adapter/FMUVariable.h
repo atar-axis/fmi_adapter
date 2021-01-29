@@ -20,8 +20,8 @@ typedef std::variant<double, int, bool> valueVariantTypes;
 
 class FMUVariable {
  private:
-  fmi2_import_variable_t* variable;
-  fmi2_import_t* parent_fmu;  // TODO: Replace by a const reference to the parent class, not the FMU itself
+  fmi2_import_variable_t* variable;  // TODO: use an UUID instead
+  fmi2_import_t* parent_fmu;         // TODO: Replace by a const reference to the parent class, not the FMU itself
   fmi2_value_reference_t valueReference;
   std::string rawName;
   fmi2_base_type_enu_t rawType;

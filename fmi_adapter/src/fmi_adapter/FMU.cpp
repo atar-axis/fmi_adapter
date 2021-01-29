@@ -189,7 +189,6 @@ FMU::FMU(const std::string& fmuPath, ros::Duration stepSize, bool interpolateInp
 
   // caching the FMU variables once, just update them later on
   cacheVariables_fmu();
-  interpretCacheVariablesForRos();
 }
 
 /**
@@ -274,8 +273,7 @@ void FMU::exitInitializationMode(ros::Time simulationTime) {
   assert(fmuTime_ == 0.0);
 
   // TODO: What is it good for? Document!
-  for (auto variable :
-       cachedVariablesInterpretedForRos_fmu | boost::adaptors::filtered(fmi_adapter::FMUVariable::varInput_filter)) {
+  for (auto variable : cachedVariables | boost::adaptors::filtered(fmi_adapter::FMUVariable::varInput_filter)) {
     std::map<ros::Time, valueVariantTypes>& inputValues = inputValuesByVariable_[variable->getVariablePointerRaw()];
     if (inputValues.empty() || inputValues.begin()->first > simulationTime) {
       auto value = variable->getValue();
@@ -285,8 +283,7 @@ void FMU::exitInitializationMode(ros::Time simulationTime) {
 }
 
 void FMU::_doStep(const ros::Duration& stepSize) {
-  for (auto variable :
-       cachedVariablesInterpretedForRos_fmu | boost::adaptors::filtered(fmi_adapter::FMUVariable::varInput_filter)) {
+  for (auto variable : cachedVariables | boost::adaptors::filtered(fmi_adapter::FMUVariable::varInput_filter)) {
     std::map<ros::Time, valueVariantTypes>& inputValuesByTime =
         inputValuesByVariable_[variable->getVariablePointerRaw()];
 
@@ -419,7 +416,7 @@ void FMU::setInputValue(std::string variableName, ros::Time time, valueVariantTy
  * @param handle to the ROSNode
  */
 void FMU::initializeFromROSParameters(const ros::NodeHandle& handle) {
-  for (auto variable : cachedVariablesInterpretedForRos_fmu) {
+  for (auto variable : cachedVariables) {
     // get a representation of the current type
     auto variableValue = variable->getValue();
 
@@ -438,33 +435,16 @@ void FMU::initializeFromROSParameters(const ros::NodeHandle& handle) {
  * This helper functions returns all variables with a certain property defined by an optional filter.
  *
  */
+
 void FMU::cacheVariables_fmu() {
-  assert(fmu_);
-
-  cachedVariablesRaw_fmu.clear();
+  cachedVariables.clear();
 
   fmi2_import_variable_list_t* variableList = fmi2_import_get_variable_list(fmu_, 0);
   const size_t variablesCount = fmi2_import_get_variable_list_size(variableList);
 
   for (size_t index = 0; index < variablesCount; ++index) {
     fmi2_import_variable_t* variable = fmi2_import_get_variable(variableList, index);
-    cachedVariablesRaw_fmu.push_back(variable);
-  }
-
-  fmi2_import_free_variable_list(variableList);
-
-  return;
-}
-
-void FMU::interpretCacheVariablesForRos() {
-  cachedVariablesInterpretedForRos_fmu.clear();
-
-  fmi2_import_variable_list_t* variableList = fmi2_import_get_variable_list(fmu_, 0);
-  const size_t variablesCount = fmi2_import_get_variable_list_size(variableList);
-
-  for (size_t index = 0; index < variablesCount; ++index) {
-    fmi2_import_variable_t* variable = fmi2_import_get_variable(variableList, index);
-    cachedVariablesInterpretedForRos_fmu.push_back(std::make_shared<FMUVariable>(fmu_, variable));
+    cachedVariables.push_back(std::make_shared<FMUVariable>(fmu_, variable));
   }
 
   fmi2_import_free_variable_list(variableList);
@@ -472,9 +452,9 @@ void FMU::interpretCacheVariablesForRos() {
 }
 
 
-std::vector<std::shared_ptr<FMUVariable>> FMU::getCachedVariablesInterpretedForRos_fmu() const {
+std::vector<std::shared_ptr<FMUVariable>> FMU::getCachedVariables() const {
   assert(fmu_);
-  return cachedVariablesInterpretedForRos_fmu;
+  return cachedVariables;
 }
 
 }  // namespace fmi_adapter

@@ -124,7 +124,7 @@ class FMU {
   /// parameter '/my_node_name/dx_2_'.
   void initializeFromROSParameters(const ros::NodeHandle& handle);
 
-  std::vector<std::shared_ptr<FMUVariable>> getCachedVariablesInterpretedForRos_fmu() const;
+  std::vector<std::shared_ptr<FMUVariable>> getCachedVariables() const;
 
   // variable type conversion helpers
   template <typename Tin, typename Tout>
@@ -182,10 +182,8 @@ class FMU {
   ros::Time getSimulationTimeInternal() const { return ros::Time(fmuTime_) + fmuTimeOffset_; }
 
 
-  std::vector<fmi2_import_variable_t*> cachedVariablesRaw_fmu{};
-  std::vector<std::shared_ptr<FMUVariable>> cachedVariablesInterpretedForRos_fmu{};
+  std::vector<std::shared_ptr<FMUVariable>> cachedVariables{};  // TODO: use an map instead with UUID
   void cacheVariables_fmu();
-  void interpretCacheVariablesForRos();
 };
 
 }  // namespace fmi_adapter
