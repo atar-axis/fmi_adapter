@@ -27,7 +27,7 @@
 #include <memory>
 
 
-#include "FMIVariable.h"
+#include "FMUVariable.h"
 
 #include <ros/ros.h>
 
@@ -57,18 +57,17 @@ namespace fmi_adapter {
 /// An instance of this class wraps a FMU and allows to simulate it using the ROS time notion and standard C++ types.
 /// In the background, the FMI Library (a BSD-licensed C library) is used for interacting with the FMU.
 /// This class also provides concenvience functions to read parameters and initial values from ROS parameters.
-class FMIAdapter {
+class FMU {
  public:
   /// This ctor creates an instance using the FMU from the given path. If the step-size argument
   /// is zero, the default experiment step-size given in the FMU is used.
-  explicit FMIAdapter(const std::string& fmuPath, ros::Duration stepSize = ros::Duration(0.0),
+  explicit FMU(const std::string& fmuPath, ros::Duration stepSize = ros::Duration(0.0),
                       bool interpolateInput = true, const std::string& tmpPath = "");
 
-  FMIAdapter(const FMIAdapter& other) = delete;
+  FMU(const FMU& other) = delete;
+  FMU& operator=(const FMU&) = delete;
 
-  FMIAdapter& operator=(const FMIAdapter&) = delete;
-
-  virtual ~FMIAdapter();
+  virtual ~FMU();
 
   /// This helper function returns a ROSified version of the given variable name for use with ROS parameters.
   /// It simply replaces all special charaters not supported by ROS with an '_'.
@@ -111,9 +110,6 @@ class FMIAdapter {
   /// the relevant input values passed previously by setInputValue(..) are set depending on the given timestamps.
   ros::Time doStepsUntil(const ros::Time& simulationTime);
 
-  /// This function has been replaced by doStepsUntil.
-  __attribute__((deprecated)) void calcUntil(ros::Time simulationTime) { doStepsUntil(simulationTime); }
-
   /// Returns the current simulation time.
   ros::Time getSimulationTime() const;
 
@@ -126,7 +122,7 @@ class FMIAdapter {
   // T getOutputValue(const std::string& variableName) const;
 
   // template <typename T>
-  // T getOutputValue(const FMIVariable& variable) const;
+  // T getOutputValue(const FMUVariable& variable) const;
 
   /// Sets the given value of the given variable (or parameter or alias) as initial values. This function may be
   /// called only while isInInitializationMode() = true.
@@ -201,13 +197,13 @@ class FMIAdapter {
   // Internal FMU Variables
   private:
     std::vector<fmi2_import_variable_t*> cachedVariablesRaw_fmu{};
-    std::vector<std::shared_ptr<FMIBaseVariable>> cachedVariablesInterpretedForRos_fmu{};
+    std::vector<std::shared_ptr<FMUVariable>> cachedVariablesInterpretedForRos_fmu{};
     void cacheVariables_fmu();
     void interpretCacheVariablesForRos();
 
 
   public:
-    std::vector<std::shared_ptr<FMIBaseVariable>> getCachedVariablesInterpretedForRos_fmu () const;
+    std::vector<std::shared_ptr<FMUVariable>> getCachedVariablesInterpretedForRos_fmu () const;
 
     // filter helpers
     static bool variableFilterAll(__attribute__((unused)) fmi2_import_variable_t* variable);

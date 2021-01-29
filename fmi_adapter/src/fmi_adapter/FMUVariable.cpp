@@ -3,7 +3,7 @@
  *   All rights reserved.
  */
 
-#include "fmi_adapter/FMIVariable.h"
+#include "fmi_adapter/FMUVariable.h"
 #include <fmilib.h>
 
 
@@ -11,19 +11,19 @@
 namespace fmi_adapter {
 
 
-bool FMIBaseVariable::varInput_filter(std::shared_ptr<FMIBaseVariable> variable){
+bool FMUVariable::varInput_filter(std::shared_ptr<FMUVariable> variable){
   return variable->getCausalityRaw() == fmi2_causality_enu_input;
 }
 
-bool FMIBaseVariable::varOutput_filter(std::shared_ptr<FMIBaseVariable> variable){
+bool FMUVariable::varOutput_filter(std::shared_ptr<FMUVariable> variable){
   return variable->getCausalityRaw() == fmi2_causality_enu_output;
 }
 
-bool FMIBaseVariable::varParam_filter(std::shared_ptr<FMIBaseVariable> variable){
+bool FMUVariable::varParam_filter(std::shared_ptr<FMUVariable> variable){
   return variable->getCausalityRaw() == fmi2_causality_enu_parameter;
 }
 
-std::string FMIBaseVariable::rosifyName(const std::string& rawName) const
+std::string FMUVariable::rosifyName(const std::string& rawName) const
 {
   std::string result = rawName;
   for (size_t i = 0; i < result.size(); ++i) {
@@ -42,14 +42,14 @@ std::string FMIBaseVariable::rosifyName(const std::string& rawName) const
   return result;
 }
 
- std::string FMIBaseVariable::getNameRaw() const { return rawName; }
- fmi2_base_type_enu_t FMIBaseVariable::getTypeRaw() const { return rawType; }
- fmi2_causality_enu_t FMIBaseVariable::getCausalityRaw() const { return rawCausality; }
- std::string FMIBaseVariable::getNameRos() const { return rosifyName(rawName); }
- fmi2_value_reference_t FMIBaseVariable::getValueReference() const { return valueReference; }
+ std::string FMUVariable::getNameRaw() const { return rawName; }
+ fmi2_base_type_enu_t FMUVariable::getTypeRaw() const { return rawType; }
+ fmi2_causality_enu_t FMUVariable::getCausalityRaw() const { return rawCausality; }
+ std::string FMUVariable::getNameRos() const { return rosifyName(rawName); }
+ fmi2_value_reference_t FMUVariable::getValueReference() const { return valueReference; }
 
 
-FMIBaseVariable::FMIBaseVariable(fmi2_import_t* parent_fmu, fmi2_import_variable_t* element)
+FMUVariable::FMUVariable(fmi2_import_t* parent_fmu, fmi2_import_variable_t* element)
 : parent(parent_fmu),
   valueReference(fmi2_import_get_variable_vr(element)),
   rawName(std::string(fmi2_import_get_variable_name(element))),
@@ -57,7 +57,7 @@ FMIBaseVariable::FMIBaseVariable(fmi2_import_t* parent_fmu, fmi2_import_variable
   rawCausality(fmi2_import_get_causality(element))
 {}
 
-valueVariantTypes FMIBaseVariable::getValue()
+valueVariantTypes FMUVariable::getValue()
 {
   if (rawCausality != fmi2_causality_enu_output) {
     throw std::invalid_argument("Given variable is not an output variable!");

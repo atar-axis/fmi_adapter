@@ -28,7 +28,7 @@
 #include <std_msgs/Int32.h>
 #include <std_msgs/Bool.h>
 
-#include "fmi_adapter/FMIAdapter.h"
+#include "fmi_adapter/FMU.h"
 
 int main(int argc, char** argv) {
 
@@ -54,23 +54,23 @@ int main(int argc, char** argv) {
 
   ROS_INFO("> Parsing the FMU...");
   // Create the Adapter
-  fmi_adapter::FMIAdapter adapter(fmuPath, stepSize);
+  fmi_adapter::FMU adapter(fmuPath, stepSize);
 
 
   auto allVariablesInterpreted = adapter.getCachedVariablesInterpretedForRos_fmu();
 
   ROS_INFO("  > parameters:");
-  for (auto const& element : allVariablesInterpreted | boost::adaptors::filtered(fmi_adapter::FMIBaseVariable::varParam_filter)) {
+  for (auto const& element : allVariablesInterpreted | boost::adaptors::filtered(fmi_adapter::FMUVariable::varParam_filter)) {
     ROS_INFO("    > %s", element->getNameRaw().c_str());
   }
 
   ROS_INFO("  > inputs:");
-  for (auto const& element : allVariablesInterpreted | boost::adaptors::filtered(fmi_adapter::FMIBaseVariable::varInput_filter)) {
+  for (auto const& element : allVariablesInterpreted | boost::adaptors::filtered(fmi_adapter::FMUVariable::varInput_filter)) {
     ROS_INFO("    > %s", element->getNameRaw().c_str());
   }
 
   ROS_INFO("  > outputs:");
-  for (auto const& element : allVariablesInterpreted | boost::adaptors::filtered(fmi_adapter::FMIBaseVariable::varOutput_filter)) {
+  for (auto const& element : allVariablesInterpreted | boost::adaptors::filtered(fmi_adapter::FMUVariable::varOutput_filter)) {
     ROS_INFO("    > %s", element->getNameRaw().c_str());
   }
 
@@ -85,7 +85,7 @@ int main(int argc, char** argv) {
   std::map<std::string, ros::Subscriber> subscribers;
 
   // Iterate over all FMU Input Variables and create subscribers for the wrapping node accordingly
-  for (auto const& element : allVariablesInterpreted | boost::adaptors::filtered(fmi_adapter::FMIBaseVariable::varInput_filter)) {
+  for (auto const& element : allVariablesInterpreted | boost::adaptors::filtered(fmi_adapter::FMUVariable::varInput_filter)) {
 
     std::string rosifiedName = element->getNameRos();
 
@@ -136,8 +136,8 @@ int main(int argc, char** argv) {
 
   // Iterate over all FMU Output Variables and create publishers for the wrapping node accordingly
 
-  for (auto const& element : allVariablesInterpreted | boost::adaptors::filtered(fmi_adapter::FMIBaseVariable::varOutput_filter)) {
-    std::string rosifiedName = fmi_adapter::FMIAdapter::rosifyName(element->getNameRaw());
+  for (auto const& element : allVariablesInterpreted | boost::adaptors::filtered(fmi_adapter::FMUVariable::varOutput_filter)) {
+    std::string rosifiedName = fmi_adapter::FMU::rosifyName(element->getNameRaw());
 
     switch(element->getTypeRaw()) {
     case fmi2_base_type_real:
@@ -181,7 +181,7 @@ int main(int argc, char** argv) {
     }
 
     // propagate the newly simulated output values
-    for (auto const& element : allVariablesInterpreted | boost::adaptors::filtered(fmi_adapter::FMIBaseVariable::varOutput_filter)) {
+    for (auto const& element : allVariablesInterpreted | boost::adaptors::filtered(fmi_adapter::FMUVariable::varOutput_filter)) {
 
       auto value = element->getValue();
 

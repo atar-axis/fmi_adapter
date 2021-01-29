@@ -143,8 +143,10 @@ set_target_properties(${PROJECT_NAME}_fmilib PROPERTIES IMPORTED_LOCATION ${FMIL
 set_source_files_properties(
   include/${PROJECT_NAME}/FMIAdapter.h
   src/${PROJECT_NAME}/FMIAdapter.cpp
-  include/${PROJECT_NAME}/FMIVariable.h
-  src/${PROJECT_NAME}/FMIVariable.cpp
+  include/${PROJECT_NAME}/FMUVariable.h
+  src/${PROJECT_NAME}/FMUVariable.cpp
+  include/${PROJECT_NAME}/FMU.h
+  src/${PROJECT_NAME}/FMU.cpp
   src/${PROJECT_NAME}_node.cpp
   PROPERTIES COMPILE_FLAGS "-Wpedantic -Weffc++ -Werror -std=c++14"
 )
@@ -153,7 +155,8 @@ set_source_files_properties(
 ## Declare a C++ library
 add_library(${PROJECT_NAME}
   src/${PROJECT_NAME}/FMIAdapter.cpp
-  src/${PROJECT_NAME}/FMIVariable.cpp
+  src/${PROJECT_NAME}/FMU.cpp
+  src/${PROJECT_NAME}/FMUVariable.cpp
 )
 
 ## Add cmake target dependencies of the library

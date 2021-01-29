@@ -20,7 +20,7 @@ namespace fmi_adapter {
 
 typedef boost::variant<double, int, bool> valueVariantTypes;
 
-class FMIBaseVariable {
+class FMUVariable {
 private:
 	fmi2_import_t* parent; // TODO: Replace by a const reference to the parent class, not the FMU itself
 	fmi2_value_reference_t valueReference;
@@ -29,12 +29,12 @@ private:
     fmi2_causality_enu_t rawCausality;
 
 public:
-	FMIBaseVariable(fmi2_import_t* parent_fmu, fmi2_import_variable_t* element);
-    ~FMIBaseVariable() = default;
+	FMUVariable(fmi2_import_t* parent_fmu, fmi2_import_variable_t* element);
+    ~FMUVariable() = default;
 
 	// no copies or assignments allowed, we are holding an pointer!
-	FMIBaseVariable(const FMIBaseVariable&) = delete;
-	FMIBaseVariable& operator=(const fmi_adapter::FMIBaseVariable&) = delete;
+	FMUVariable(const FMUVariable&) = delete;
+	FMUVariable& operator=(const fmi_adapter::FMUVariable&) = delete;
 
 	std::string rosifyName(const std::string& rawName) const;
 
@@ -46,9 +46,9 @@ public:
 	fmi2_value_reference_t getValueReference() const;
 
 	// filters for use in boost::adaptors::filtered
-    static bool varInput_filter(std::shared_ptr<FMIBaseVariable> variable);
-    static bool varOutput_filter(std::shared_ptr<FMIBaseVariable> variable);
-    static bool varParam_filter(std::shared_ptr<FMIBaseVariable> variable);
+    static bool varInput_filter(std::shared_ptr<FMUVariable> variable);
+    static bool varOutput_filter(std::shared_ptr<FMUVariable> variable);
+    static bool varParam_filter(std::shared_ptr<FMUVariable> variable);
 
 	valueVariantTypes getValue();
 
