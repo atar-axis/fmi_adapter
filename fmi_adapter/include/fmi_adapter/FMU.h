@@ -21,10 +21,11 @@
 
 #include <cassert>
 #include <map>
+#include <memory>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
-#include <memory>
 
 
 #include "FMUVariable.h"
@@ -34,9 +35,7 @@
 #include <FMI2/fmi2_enums.h>
 #include <FMI2/fmi2_functions.h>
 
-#include <boost/variant.hpp>
 #include <boost/range/adaptor/filtered.hpp>
-
 
 
 struct fmi_xml_context_t;
@@ -47,9 +46,7 @@ typedef struct fmi2_xml_variable_t fmi2_import_variable_t;
 
 struct jm_callbacks;
 
-typedef boost::variant<double, int32_t, bool> variable_type;
-
-
+typedef std::variant<double, int32_t, bool> variable_type;
 
 
 namespace fmi_adapter {
@@ -61,8 +58,8 @@ class FMU {
  public:
   /// This ctor creates an instance using the FMU from the given path. If the step-size argument
   /// is zero, the default experiment step-size given in the FMU is used.
-  explicit FMU(const std::string& fmuPath, ros::Duration stepSize = ros::Duration(0.0),
-                      bool interpolateInput = true, const std::string& tmpPath = "");
+  explicit FMU(const std::string& fmuPath, ros::Duration stepSize = ros::Duration(0.0), bool interpolateInput = true,
+               const std::string& tmpPath = "");
 
   FMU(const FMU& other) = delete;
   FMU& operator=(const FMU&) = delete;
@@ -113,22 +110,10 @@ class FMU {
   /// Returns the current simulation time.
   ros::Time getSimulationTime() const;
 
-  /// Returns the current value of the given output variable.
-  // template <typename T>
-  // T _getOutputValueRaw(fmi2_import_variable_t* variable) const;
-
-  /// Returns the current value of the output variable with the given name.
-  // template <typename T>
-  // T getOutputValue(const std::string& variableName) const;
-
-  // template <typename T>
-  // T getOutputValue(const FMUVariable& variable) const;
-
   /// Sets the given value of the given variable (or parameter or alias) as initial values. This function may be
   /// called only while isInInitializationMode() = true.
   void setInitValue_fmu(fmi2_import_variable_t* variable, fmi2_real_t value);
   void setInitValue_fmu(fmi2_import_variable_t* variable, fmi2_integer_t value);
-
 
   /// Sets the given value of the variable (or parameter or alias) with the given name as initial values. This
   /// function may be called only while isInInitializationMode() = true.
@@ -140,6 +125,20 @@ class FMU {
   /// FMU variable name are mapped to '_'. For example, to pass a value for the FMU variable 'dx[2]', use the ROS
   /// parameter '/my_node_name/dx_2_'.
   void initializeFromROSParameters(const ros::NodeHandle& handle);
+
+  std::vector<std::shared_ptr<FMUVariable>> getCachedVariablesInterpretedForRos_fmu() const;
+
+  // filter helpers
+  static bool variableFilterAll(__attribute__((unused)) fmi2_import_variable_t* variable);
+  static bool variableFilterByCausality(fmi2_import_variable_t* variable, fmi2_causality_enu_t causality);
+
+  static bool rawInput_filter(fmi2_import_variable_t* variable);
+  static bool rawOutput_filter(fmi2_import_variable_t* variable);
+  static bool rawParam_filter(fmi2_import_variable_t* variable);
+
+  // variable type conversion helpers
+  template <typename Tin, typename Tout>
+  static Tout convert(Tin value);
 
  private:
   /// Path of the FMU being wrapped by this instance.
@@ -193,31 +192,10 @@ class FMU {
   ros::Time getSimulationTimeInternal() const { return ros::Time(fmuTime_) + fmuTimeOffset_; }
 
 
-
-  // Internal FMU Variables
-  private:
-    std::vector<fmi2_import_variable_t*> cachedVariablesRaw_fmu{};
-    std::vector<std::shared_ptr<FMUVariable>> cachedVariablesInterpretedForRos_fmu{};
-    void cacheVariables_fmu();
-    void interpretCacheVariablesForRos();
-
-
-  public:
-    std::vector<std::shared_ptr<FMUVariable>> getCachedVariablesInterpretedForRos_fmu () const;
-
-    // filter helpers
-    static bool variableFilterAll(__attribute__((unused)) fmi2_import_variable_t* variable);
-    static bool variableFilterByCausality(fmi2_import_variable_t* variable, fmi2_causality_enu_t causality);
-
-    static bool rawInput_filter(fmi2_import_variable_t* variable);
-    static bool rawOutput_filter(fmi2_import_variable_t* variable);
-    static bool rawParam_filter(fmi2_import_variable_t* variable);
-
-    // variable type conversion helpers
-    template <typename Tin, typename Tout>
-    static Tout convert(Tin value);
-
-
+  std::vector<fmi2_import_variable_t*> cachedVariablesRaw_fmu{};
+  std::vector<std::shared_ptr<FMUVariable>> cachedVariablesInterpretedForRos_fmu{};
+  void cacheVariables_fmu();
+  void interpretCacheVariablesForRos();
 };
 
 }  // namespace fmi_adapter

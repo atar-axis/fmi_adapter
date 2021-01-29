@@ -13,7 +13,7 @@ set(FMILibraryProject_LIB_DIR "${INSTALL_DIR}/src/install/lib")
 
 
 ## Compile as C++11, supported in ROS Kinetic and newer
-add_compile_options(-std=c++11 -Wall -Wextra)
+add_compile_options(-std=c++17 -Wfatal-errors -Wall -Wextra)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -148,7 +148,7 @@ set_source_files_properties(
   include/${PROJECT_NAME}/FMU.h
   src/${PROJECT_NAME}/FMU.cpp
   src/${PROJECT_NAME}_node.cpp
-  PROPERTIES COMPILE_FLAGS "-Wpedantic -Weffc++ -Werror -std=c++14"
+  PROPERTIES COMPILE_FLAGS "-Wpedantic -Weffc++ -Werror -std=c++17"
 )
 
 
