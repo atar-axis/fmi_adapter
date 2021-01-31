@@ -141,8 +141,8 @@ set_target_properties(${PROJECT_NAME}_fmilib PROPERTIES IMPORTED_LOCATION ${FMIL
 
 ### Set strict compiler settings for all source files, but not for test files due to warnings raised by GTest headers.
 set_source_files_properties(
-  include/${PROJECT_NAME}/FMIAdapter.h
-  src/${PROJECT_NAME}/FMIAdapter.cpp
+  include/${PROJECT_NAME}/FMIMaster.h
+  src/${PROJECT_NAME}/FMIMaster.cpp
   include/${PROJECT_NAME}/FMUVariable.h
   src/${PROJECT_NAME}/FMUVariable.cpp
   include/${PROJECT_NAME}/FMU.h
@@ -154,7 +154,7 @@ set_source_files_properties(
 
 ## Declare a C++ library
 add_library(${PROJECT_NAME}
-  src/${PROJECT_NAME}/FMIAdapter.cpp
+  src/${PROJECT_NAME}/FMIMaster.cpp
   src/${PROJECT_NAME}/FMU.cpp
   src/${PROJECT_NAME}/FMUVariable.cpp
 )

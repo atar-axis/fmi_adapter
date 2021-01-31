@@ -3,4 +3,4 @@
  *   All rights reserved.
  */
 
-#include "fmi_adapter/FMIAdapter.h"
+#include "fmi_adapter/FMIMaster.h"

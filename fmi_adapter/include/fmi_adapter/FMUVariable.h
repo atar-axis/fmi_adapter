@@ -3,13 +3,14 @@
  *   All rights reserved.
  */
 
+#pragma once
+
 #include <memory>
 #include <string>
 #include <variant>
 
-#include "FMIAdapter.h"
-
 #include <ros/ros.h>
+#include <fmilib.h>
 
 #include <FMI2/fmi2_enums.h>
 #include <FMI2/fmi2_functions.h>
@@ -19,9 +20,6 @@
 namespace fmi_adapter {
 
 typedef std::variant<double, int, bool> valueVariantTypes;
-
-class FMU;  // forward declaration because of the cyclic dependency
-
 
 class FMUVariable {
  private:

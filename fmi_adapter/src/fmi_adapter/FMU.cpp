@@ -18,10 +18,8 @@
 // limitations under the License.
 
 #include "fmi_adapter/FMU.h"
-#include "fmi_adapter/FMIAdapter.h"
 
 #include <cstdlib>
-
 #include <algorithm>
 #include <exception>
 #include <fstream>
@@ -258,9 +256,9 @@ ros::Duration FMU::getDefaultExperimentStep() const {
  *
  * All times passed to setValue(...) and doStep*(...) are translated correspondingly.
  *
- * @param simulationTime time where the simulation should start
+ * @param externalStartTime time where the simulation starts (e.g. the current time from ROS)
  */
-void FMU::exitInitializationMode(ros::Time simulationTime) {
+void FMU::exitInitializationMode(ros::Time externalStartTime) {
   if (!inInitializationMode_) {
     throw std::runtime_error("FMU is no longer in initialization mode!");
   }
@@ -271,15 +269,19 @@ void FMU::exitInitializationMode(ros::Time simulationTime) {
   }
   inInitializationMode_ = false;
 
-  fmuTimeOffset_ = simulationTime - ros::Time(0.0);
+  // The ROS simulation time starts earlier than the FMUs internal time
+  // because the FMUs are loaded a bit later. Therefore, remember the time
+  // where it started in order to know how much to calculate later on
+  // in doStepsUtil (since the ros time is passed, not the fmu time)
+  fmuTimeOffset_ = externalStartTime - ros::Time(0.0);
   assert(fmuTime_ == 0.0);
 
   // TODO: What is it good for? Document!
   for (auto variable : cachedVariables | boost::adaptors::filtered(fmi_adapter::FMUVariable::varInput_filter)) {
     std::map<ros::Time, valueVariantTypes>& inputValues = inputValuesByVariable_[variable->getVariablePointerRaw()];
-    if (inputValues.empty() || inputValues.begin()->first > simulationTime) {
+    if (inputValues.empty() || inputValues.begin()->first > externalStartTime) {
       auto value = variable->getValue();
-      inputValues[simulationTime] = value;
+      inputValues[externalStartTime] = value;
     }
   }
 }
@@ -352,7 +354,9 @@ ros::Time FMU::doStepsUntil(const ros::Time& simulationTime) {
     throw std::runtime_error("FMU is still in initialization mode!");
   }
 
+  // ROS_WARN("oans");
   fmi2_real_t targetFMUTime = (simulationTime - fmuTimeOffset_).toSec();
+  // ROS_WARN("zwoa");
   if (targetFMUTime < fmuTime_ - stepSize_.toSec() / 2.0) {  // Subtract stepSize/2 for rounding.
     ROS_ERROR("Given time %f is before current simulation time %f!", targetFMUTime, fmuTime_);
     throw std::invalid_argument("Given time is before current simulation time!");
@@ -422,7 +426,7 @@ void FMU::initializeFromROSParameters(const ros::NodeHandle& handle) {
     // get a representation of the current type
     auto variableValue = variable->getValue();
 
-    // call ROS::getParam on the active type, store the result in variableValue
+    // call ROS::getParam on the active type, store the result in variableValue, if any
     std::visit([handle, variable](auto& activeVariant) { handle.getParam(variable->getNameRaw(), activeVariant); },
                variableValue);
 
