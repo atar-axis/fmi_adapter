@@ -3,7 +3,6 @@
  *   All rights reserved.
  */
 
-#include <fmi_adapter/FMIAdapter.h>
 #include <fmi_adapter/FMUVariable.h>
 
 namespace fmi_adapter {
