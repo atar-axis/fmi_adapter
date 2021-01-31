@@ -35,6 +35,25 @@
 // TODO:   remove them everywhere else
 
 
+template <typename T>
+struct toRosMsg;
+template <typename T>
+using toRosMsg_t = typename toRosMsg<T>::type;
+
+template <>
+struct toRosMsg<int> {
+  using type = std_msgs::Int32;
+};
+template <>
+struct toRosMsg<double> {
+  using type = std_msgs::Float64;
+};
+template <>
+struct toRosMsg<bool> {
+  using type = std_msgs::Bool;
+};
+
+
 int main(int argc, char** argv) {
   ROS_INFO("> Creating ROS node...");
   ros::init(argc, argv, "fmi_adapter_node");
@@ -62,228 +81,75 @@ int main(int argc, char** argv) {
   master.config();  // ! dummy (pass some config informations here, e.g. a json file)
 
   ROS_WARN("master inputs:");
-  // TODO: Connect master inputs to subs
-
-  auto masterIn = master.getInputs();
   std::map<std::string, ros::Subscriber> subscribers;
+  auto masterIn = master.getInputs();
 
   for (auto const& [name, element] : masterIn) {
     ROS_WARN("* %s", name.c_str());
 
-    switch (element->getTypeRaw()) {
-      case fmi2_base_type_real:
-        subscriber = n.subscribe<std_msgs::Float64>(
-            rosifiedName, 1000, [&adapter, element](const std_msgs::Float64::ConstPtr& msg) {
-              adapter.setInputValue(element->getNameRaw(), ros::Time::now(), (double)msg->data);
-            });
-        break;
-      case fmi2_base_type_int:
-        n.subscribe<std_msgs::Int32>(name, 1000, [&master, element](const std_msgs::Int32::ConstPtr& msg) {
-          (void)msg;
-          master.setInputValue();
-        });
-        break;
-      case fmi2_base_type_bool:
-        n.subscribe<std_msgs::Bool>(name, 1000, [&master, element](const std_msgs::Bool::ConstPtr& msg) {
-          (void)msg;
-          master.setInputValue();
-        });
-        break;
-      default:
-        break;
-    }
+    // get a empty dummy value from the variable (which is a std::variant) to deduce the type of it
+    // then subscribe to a topic and forward incoming messages to the master
+    // remember: ros is using different types in comparison to the FMU, therefore we need to translate those
+    auto elVal = element->getValue();
+    std::visit(
+        [&](auto& activeVariant) {
+          using variantType = typename std::remove_reference<decltype(activeVariant)>::type;
+          using rosMsgType = toRosMsg_t<variantType>;
+          subscribers[name] =
+              n.subscribe<rosMsgType>(name, 1000, [&master, &name](const typename rosMsgType::ConstPtr& msg) {
+                master.setInputValue(name, ros::Time::now(), (variantType)msg->data);
+              });
+        },
+        elVal);
   }
 
   ROS_WARN("master outputs:");
-  // TODO: Connect master outputs to pubs
+  std::map<std::string, ros::Publisher> publishers;
   auto masterOut = master.getOutputs();
+
+  // Create a publisher topic for every output
   for (auto const& [name, element] : masterOut) {
     ROS_WARN("* %s", name.c_str());
 
-    switch (element->getTypeRaw()) {
-      case fmi2_base_type_real:
-        n.advertise<std_msgs::Float64>(name, 1000);
-        break;
-      case fmi2_base_type_int:
-        n.advertise<std_msgs::Int32>(name, 1000);
-        break;
-      case fmi2_base_type_bool:
-        n.advertise<std_msgs::Bool>(name, 1000);
-        break;
-      default:
-        break;
-    }
-    ROS_WARN("* new publisher for variable: %s", name.c_str());
+    auto elVal = element->getValue();
+    std::visit(
+        [&](auto& activeVariant) {
+          using variantType = typename std::remove_reference<decltype(activeVariant)>::type;
+          using rosMsgType = toRosMsg_t<variantType>;
+          publishers[name] = n.advertise<rosMsgType>(name, 1000);
+        },
+        elVal);
   }
 
   master.exitInitModeSlaves(ros::Time::now());
 
-  n.createTimer(ros::Duration(updatePeriod), [&](const ros::TimerEvent& event) {
+  ROS_WARN("creating timer...");
+
+  //! You need to assign the created timer to an variable - why?
+  auto timer = n.createTimer(ros::Duration(updatePeriod), [&](const ros::TimerEvent& event) {
     // simulate steps until we reach the desired time
     if (master.getSimulationTime() < event.current_expected) {
-      ROS_INFO_THROTTLE(10, "  > still alive...");
       master.doStepsUntil(event.current_expected);
     } else {
-      ROS_INFO("Simulation time %f is greater than timer's time %f. Is your step size to large?",
+      ROS_WARN("Simulation time %f is greater than timer's time %f. Is your step size to large?",
                master.getSimulationTime().toSec(), event.current_expected.toSec());
     }
 
-    // TODO: propagate the newly simulated output values
+    // propagate the output values to the publishers
+    for (auto const& [name, element] : masterOut) {
+      auto elVal = element->getValue();
+      std::visit(
+          [&](auto& activeVariant) {
+            using variantType = typename std::remove_reference<decltype(activeVariant)>::type;
+            using rosMsgType = toRosMsg_t<variantType>;
+
+            rosMsgType msg;
+            msg.data = activeVariant;
+            publishers[name].publish(msg);
+          },
+          elVal);
+    }
   });
-
-
-  // ROS_INFO("> Parsing the FMU...");
-  // // Create the Adapter
-  // fmi_adapter::FMU adapter(fmuPath, stepSize);
-
-
-  // auto allVariablesInterpreted = adapter.getCachedVariables();
-
-  // ROS_INFO("  > parameters:");
-  // for (auto const& element :
-  //      allVariablesInterpreted | boost::adaptors::filtered(fmi_adapter::FMUVariable::varParam_filter)) {
-  //   ROS_INFO("    > %s", element->getNameRaw().c_str());
-  // }
-
-  // ROS_INFO("  > inputs:");
-  // for (auto const& element :
-  //      allVariablesInterpreted | boost::adaptors::filtered(fmi_adapter::FMUVariable::varInput_filter)) {
-  //   ROS_INFO("    > %s", element->getNameRaw().c_str());
-  // }
-
-  // ROS_INFO("  > outputs:");
-  // for (auto const& element :
-  //      allVariablesInterpreted | boost::adaptors::filtered(fmi_adapter::FMUVariable::varOutput_filter)) {
-  //   ROS_INFO("    > %s", element->getNameRaw().c_str());
-  // }
-
-  // Init the Adapter
-  // ROS_INFO("> Initializing interface variables...");
-  // adapter.initializeFromROSParameters(n);
-
-
-  // ROS_INFO("> Connecting FMU to adapter...");
-
-  // ROS_INFO("  > Creating subscribers...");
-  // std::map<std::string, ros::Subscriber> subscribers;
-
-  // // Iterate over all FMU Input Variables and create subscribers for the wrapping node accordingly
-  // for (auto const& element :
-  //      allVariablesInterpreted | boost::adaptors::filtered(fmi_adapter::FMUVariable::varInput_filter)) {
-  //   std::string rosifiedName = element->getNameRos();
-
-  //   ros::Subscriber subscriber;
-
-  //   switch (element->getTypeRaw()) {
-  //     case fmi2_base_type_real:
-  //       subscriber = n.subscribe<std_msgs::Float64>(
-  //           rosifiedName, 1000, [&adapter, element](const std_msgs::Float64::ConstPtr& msg) {
-  //             adapter.setInputValue(element->getNameRaw(), ros::Time::now(), (double)msg->data);
-  //           });
-  //       ROS_INFO("    > created new subscriber for double variable: %s", rosifiedName.c_str());
-  //       break;
-
-  //     case fmi2_base_type_int:
-  //       subscriber =
-  //           n.subscribe<std_msgs::Int32>(rosifiedName, 1000, [&adapter, element](const std_msgs::Int32::ConstPtr&
-  //           msg) {
-  //             adapter.setInputValue(element->getNameRaw(), ros::Time::now(), (int)msg->data);
-  //           });
-  //       ROS_INFO("    > created new subscriber for int variable: %s", rosifiedName.c_str());
-  //       break;
-  //     case fmi2_base_type_bool:
-  //       subscriber =
-  //           n.subscribe<std_msgs::Bool>(rosifiedName, 1000, [&adapter, element](const std_msgs::Bool::ConstPtr& msg)
-  //           {
-  //             adapter.setInputValue(element->getNameRaw(), ros::Time::now(), (bool)(msg->data == 1 ? true : false));
-  //           });
-  //       ROS_INFO("    > created new subscriber for bool variable: %s", rosifiedName.c_str());
-  //       break;
-  //     case fmi2_base_type_str:
-  //       break;
-  //     case fmi2_base_type_enum:
-  //       break;
-  //   }
-
-
-  //   if (subscriber) subscribers[element->getNameRaw()] = subscriber;
-  // }
-
-  // ROS_INFO("  > Creating publishers...");
-  // std::map<std::string, ros::Publisher> publishers;
-
-  // // Iterate over all FMU Output Variables and create publishers for the wrapping node accordingly
-
-  // for (auto const& element :
-  //      allVariablesInterpreted | boost::adaptors::filtered(fmi_adapter::FMUVariable::varOutput_filter)) {
-  //   std::string rosifiedName = fmi_adapter::FMU::rosifyName(element->getNameRaw());
-
-  //   switch (element->getTypeRaw()) {
-  //     case fmi2_base_type_real:
-  //       publishers[element->getNameRaw()] = n.advertise<std_msgs::Float64>(rosifiedName, 1000);
-  //       ROS_INFO("    > created new publisher for double variable: %s", rosifiedName.c_str());
-  //       break;
-  //     case fmi2_base_type_int:
-  //       publishers[element->getNameRaw()] = n.advertise<std_msgs::Int32>(rosifiedName, 1000);
-  //       ROS_INFO("    > created new publisher for int variable: %s", rosifiedName.c_str());
-  //       break;
-  //     case fmi2_base_type_bool:
-  //       publishers[element->getNameRaw()] = n.advertise<std_msgs::Bool>(rosifiedName, 1000);
-  //       ROS_INFO("    > created new publisher for bool variable: %s", rosifiedName.c_str());
-  //       break;
-  //     default:
-  //       break;
-  //   }
-  // }
-
-  // ROS_INFO("> FMU initialization done");
-  // adapter.exitInitializationMode(ros::Time::now());
-
-
-  // ---
-  // Spinning Loop
-  // ---
-
-  // ROS_INFO("> Starting simulation...");
-  // ros::Timer timer = n.createTimer(ros::Duration(updatePeriod), [&](const ros::TimerEvent& event) {
-  //   // simulate steps until we reach the desired time
-  //   if (adapter.getSimulationTime() < event.current_expected) {
-  //     ROS_INFO_THROTTLE(10, "  > still alive...");
-  //     adapter.doStepsUntil(event.current_expected);
-  //   } else {
-  //     ROS_INFO("Simulation time %f is greater than timer's time %f. Is your step size to large?",
-  //              adapter.getSimulationTime().toSec(), event.current_expected.toSec());
-  //   }
-
-  //   // propagate the newly simulated output values
-  //   for (auto const& element :
-  //        allVariablesInterpreted | boost::adaptors::filtered(fmi_adapter::FMUVariable::varOutput_filter)) {
-  //     auto value = element->getValue();
-
-  //     switch (element->getTypeRaw()) {
-  //       case fmi2_base_type_real: {
-  //         std_msgs::Float64 msg;
-  //         msg.data = std::get<double>(value);
-  //         publishers[element->getNameRaw()].publish(msg);
-  //         break;
-  //       }
-  //       case fmi2_base_type_int: {
-  //         std_msgs::Int32 msg;
-  //         msg.data = std::get<int>(value);
-  //         publishers[element->getNameRaw()].publish(msg);
-  //         break;
-  //       }
-  //       case fmi2_base_type_bool: {
-  //         std_msgs::Bool msg;
-  //         msg.data = std::get<bool>(value);
-  //         publishers[element->getNameRaw()].publish(msg);
-  //         break;
-  //       }
-  //       default:
-  //         break;
-  //     }
-  //   }
-  // });
 
   ros::spin();
 

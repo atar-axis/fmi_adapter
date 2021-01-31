@@ -81,6 +81,7 @@ class FMIMaster {
 
   void exitInitModeSlaves(ros::Time simulationTime) {
     // Complete the Initialization, i.e. set the starttime
+    ROS_WARN("Exiting Init Mode ...");
     for (auto& [name, fmu] : slave_fmus) {
       (void)name;  // variable 'name' is currently unused
 
@@ -88,6 +89,7 @@ class FMIMaster {
       // TODO: Maybe we should do some work here instead of doing it in the slaves?
       fmu->exitInitializationMode(simulationTime);
     }
+    ROS_WARN("Exiting Init Mode done!");
   }
 
   void doStepsUntil(const ros::Time& simulationTime) {
@@ -111,7 +113,12 @@ class FMIMaster {
     return master_inputs;
   }
 
-  void setInputValue() {
+  void setInputValue(std::string name, ros::Time when, valueVariantTypes value) {
+    (void)name;
+    (void)when;
+    (void)value;
+    ROS_WARN("master received msg: recipient is %s", name.c_str());
+
     // TODO: implement
     return;
   }
