@@ -77,6 +77,7 @@ int main(int argc, char** argv) {
 
   auto master = fmi_adapter::FMIMaster(stepSizeAsDouble);
   master.createSlave("testUnit1", fmuPath);
+  master.createSlave("testUnit2", fmuPath);
   master.initSlavesFromROS(n);
   master.config();  // ! dummy (pass some config informations here, e.g. a json file)
 
@@ -84,8 +85,12 @@ int main(int argc, char** argv) {
   std::map<std::string, ros::Subscriber> subscribers;
   auto masterIn = master.getInputs();
 
-  for (auto const& [name, element] : masterIn) {
-    ROS_WARN("* %s", name.c_str());
+  for (auto const& [identifier, element] : masterIn) {
+    const auto& fmu_name = std::get<0>(identifier);
+    const auto& port_name = std::get<1>(identifier);
+    const auto rosName = fmu_name + "___" + port_name;
+
+    ROS_WARN("* %s->%s", fmu_name.c_str(), port_name.c_str());
 
     // get a empty dummy value from the variable (which is a std::variant) to deduce the type of it
     // then subscribe to a topic and forward incoming messages to the master
@@ -95,10 +100,9 @@ int main(int argc, char** argv) {
         [&](auto& activeVariant) {
           using variantType = typename std::remove_reference<decltype(activeVariant)>::type;
           using rosMsgType = toRosMsg_t<variantType>;
-          subscribers[name] =
-              n.subscribe<rosMsgType>(name, 1000, [&master, &name](const typename rosMsgType::ConstPtr& msg) {
-                master.setInputValue(name, ros::Time::now(), (variantType)msg->data);
-              });
+          subscribers[rosName] = n.subscribe<rosMsgType>(rosName, 1000, [&](const typename rosMsgType::ConstPtr& msg) {
+            master.setInputValue(fmu_name, port_name, ros::Time::now(), (variantType)msg->data);
+          });
         },
         elVal);
   }
@@ -108,15 +112,19 @@ int main(int argc, char** argv) {
   auto masterOut = master.getOutputs();
 
   // Create a publisher topic for every output
-  for (auto const& [name, element] : masterOut) {
-    ROS_WARN("* %s", name.c_str());
+  for (auto const& [identifier, element] : masterOut) {
+    const auto& fmu_name = std::get<0>(identifier);
+    const auto& port_name = std::get<1>(identifier);
+    const auto rosName = fmu_name + "___" + port_name;
+
+    ROS_WARN("* %s->%s", fmu_name.c_str(), port_name.c_str());
 
     auto elVal = element->getValue();
     std::visit(
         [&](auto& activeVariant) {
           using variantType = typename std::remove_reference<decltype(activeVariant)>::type;
           using rosMsgType = toRosMsg_t<variantType>;
-          publishers[name] = n.advertise<rosMsgType>(name, 1000);
+          publishers[rosName] = n.advertise<rosMsgType>(rosName, 1000);
         },
         elVal);
   }
@@ -136,7 +144,11 @@ int main(int argc, char** argv) {
     }
 
     // propagate the output values to the publishers
-    for (auto const& [name, element] : masterOut) {
+    for (auto const& [identifier, element] : masterOut) {
+      const auto& fmu_name = std::get<0>(identifier);
+      const auto& port_name = std::get<1>(identifier);
+      const auto rosName = fmu_name + "___" + port_name;
+
       auto elVal = element->getValue();
       std::visit(
           [&](auto& activeVariant) {
@@ -145,7 +157,7 @@ int main(int argc, char** argv) {
 
             rosMsgType msg;
             msg.data = activeVariant;
-            publishers[name].publish(msg);
+            publishers[rosName].publish(msg);
           },
           elVal);
     }

@@ -19,8 +19,8 @@ namespace fmi_adapter {
 class FMIMaster {
   std::map<std::string, std::unique_ptr<FMU>> slave_fmus{};
 
-  std::map<std::string, std::shared_ptr<FMUVariable>> master_inputs{};
-  std::map<std::string, std::shared_ptr<FMUVariable>> master_outputs{};
+  std::map<std::tuple<std::string, std::string>, std::shared_ptr<FMUVariable>> master_inputs{};
+  std::map<std::tuple<std::string, std::string>, std::shared_ptr<FMUVariable>> master_outputs{};
 
   double stepSize;
 
@@ -37,7 +37,7 @@ class FMIMaster {
   void createSlave(std::string unique_name, std::string fmuPath) {
     // Check if the name is really unique
     if (slave_fmus.find(unique_name) != slave_fmus.end()) {
-      ROS_WARN("The Slave FMU called %s already exists in this master! Not added!", unique_name.c_str());
+      ROS_WARN("A slave named %s already exists in this master! Not added!", unique_name.c_str());
       return;
     }
 
@@ -51,75 +51,68 @@ class FMIMaster {
       ROS_ERROR("Cannot config master. Add Slaves before configuring it!");
     }
 
-    for (auto& [name, fmu] : slave_fmus) {
-      auto allElements = fmu->getCachedVariables();
+    for (const auto& [fmuname, fmuptr] : slave_fmus) {
+      auto allElements = fmuptr->getCachedVariables();
 
       // TODO: forward outputs from slaves to master (but not all)
       for (auto const output : allElements | boost::adaptors::filtered(fmi_adapter::FMUVariable::varOutput_filter)) {
-        std::string outputName = name + "__" + output->getNameRaw();
-        master_outputs.insert(std::make_pair(outputName, output));
+        // std::string outputName = "___" + name + "___" + output->getNameRaw();
+        master_outputs.insert(std::make_pair(std::make_tuple(fmuname, output->getNameRaw()), output));
       }
 
       // TODO: forward inputs from master to slaves (but not all)
       for (auto const input : allElements | boost::adaptors::filtered(fmi_adapter::FMUVariable::varInput_filter)) {
-        std::string inputName = name + "__" + input->getNameRaw();
-        master_inputs.insert(std::make_pair(inputName, input));
+        // std::string inputName = "___" + name + "___" + input->getNameRaw();
+        master_inputs.insert(std::make_pair(std::make_tuple(fmuname, input->getNameRaw()), input));
       }
     }
   }
 
   void initSlavesFromROS(const ros::NodeHandle& wrappingNode) {
-    for (auto& [name, fmu] : slave_fmus) {
-      (void)name;  // variable 'name' is currently unused
+    for (auto& [fmuname, fmuptr] : slave_fmus) {
+      (void)fmuname;  // variable 'name' is currently unused
 
       // TODO: Is it really a good idea to simply pass the variable?
       // TODO: Maybe we should do some work here instead of doing it in the slaves?
       // TODO: What are those Parameters even? What are they good for?
-      fmu->initializeFromROSParameters(wrappingNode);
+      fmuptr->initializeFromROSParameters(wrappingNode);
     }
   }
 
   void exitInitModeSlaves(ros::Time simulationTime) {
     // Complete the Initialization, i.e. set the starttime
     ROS_WARN("Exiting Init Mode ...");
-    for (auto& [name, fmu] : slave_fmus) {
-      (void)name;  // variable 'name' is currently unused
+    for (auto& [fmuname, fmuptr] : slave_fmus) {
+      (void)fmuname;  // variable 'name' is currently unused
 
       // TODO: Is it really a good idea to simply pass the variable?
       // TODO: Maybe we should do some work here instead of doing it in the slaves?
-      fmu->exitInitializationMode(simulationTime);
+      fmuptr->exitInitializationMode(simulationTime);
     }
     ROS_WARN("Exiting Init Mode done!");
   }
 
   void doStepsUntil(const ros::Time& simulationTime) {
-    for (auto& [name, fmu] : slave_fmus) {
-      (void)name;  // variable 'name' is currently unused
+    for (auto& [fmuname, fmuptr] : slave_fmus) {
+      (void)fmuname;  // variable 'name' is currently unused
 
-      fmu->doStepsUntil(simulationTime);
+      fmuptr->doStepsUntil(simulationTime);
     }
 
     // TODO: process as configured, i.e. store the results somewhere for the next step
     // ? When are those values exchanged between the slaves?! On every Step?
   }
 
-  const std::map<std::string, std::shared_ptr<FMUVariable>>& getOutputs() {
-    // TODO
+  const std::map<std::tuple<std::string, std::string>, std::shared_ptr<FMUVariable>>& getOutputs() {
     return master_outputs;
   }
 
-  const std::map<std::string, std::shared_ptr<FMUVariable>>& getInputs() {
-    // TODO
+  const std::map<std::tuple<std::string, std::string>, std::shared_ptr<FMUVariable>>& getInputs() {
     return master_inputs;
   }
 
-  void setInputValue(std::string name, ros::Time when, valueVariantTypes value) {
-    (void)name;
-    (void)when;
-    (void)value;
-    ROS_WARN("master received msg: recipient is %s", name.c_str());
-
-    // TODO: implement
+  void setInputValue(std::string fmuName, std::string portName, ros::Time when, valueVariantTypes value) {
+    slave_fmus[fmuName]->setInputValue(portName, when, value);
     return;
   }
 
