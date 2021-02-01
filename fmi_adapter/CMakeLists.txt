@@ -12,7 +12,7 @@ set(FMILibraryProject_INCLUDE_DIR "${INSTALL_DIR}/src/install/include")
 set(FMILibraryProject_LIB_DIR "${INSTALL_DIR}/src/install/lib")
 
 
-## Compile as C++11, supported in ROS Kinetic and newer
+## Compile as C++17
 add_compile_options(-std=c++17 -Wfatal-errors -Wall -Wextra)
 
 ## Find catkin macros and libraries

@@ -30,6 +30,10 @@
 
 #include "fmi_adapter/FMIMaster.h"
 
+#include <boost/algorithm/string/classification.hpp>  // for boost::for is_any_of
+#include <boost/algorithm/string/split.hpp>           // for boost::split
+#include <boost/filesystem.hpp>                       // for path
+
 
 // TODO: * This is the only place where ROS:: elements should be used,
 // TODO:   remove them everywhere else
@@ -61,14 +65,17 @@ int main(int argc, char** argv) {
 
   ROS_INFO("> Reading in ROS node parameters...");
 
-  std::string fmuPath;
-  if (!n.getParam("fmu_path", fmuPath)) {
+  std::string fmuPaths_string;
+  if (!n.getParam("fmu_path", fmuPaths_string)) {
     ROS_ERROR("Parameter 'fmu_path' not specified!");
     throw std::runtime_error("Parameter 'fmu_path' not specified!");
   }
+  std::vector<std::string> fmuPath;
+  boost::split(fmuPath, fmuPaths_string, boost::is_any_of(", "), boost::token_compress_on);
 
-  double stepSizeAsDouble = 0.0;
-  n.getParam("step_size", stepSizeAsDouble);
+
+  double stepSizeAsDouble = 0.005;
+  // n.getParam("step_size", stepSizeAsDouble);
   ros::Duration stepSize(stepSizeAsDouble);
 
   double updatePeriod = 0.01;  // Default is 0.01s
@@ -76,8 +83,11 @@ int main(int argc, char** argv) {
 
 
   auto master = fmi_adapter::FMIMaster(stepSizeAsDouble);
-  master.createSlave("testUnit1", fmuPath);
-  master.createSlave("testUnit2", fmuPath);
+  for (const auto& fmuPath : fmuPath) {
+    std::string stem = boost::filesystem::path(fmuPath).stem().string();
+    ROS_WARN("adding new slave %s: %s", stem.c_str(), fmuPath.c_str());
+    master.createSlave(stem, fmuPath);
+  }
   master.initSlavesFromROS(n);
   master.config();  // ! dummy (pass some config informations here, e.g. a json file)
 
@@ -136,13 +146,15 @@ int main(int argc, char** argv) {
   //! You need to assign the created timer to an variable - why?
   auto timer = n.createTimer(ros::Duration(updatePeriod), [&](const ros::TimerEvent& event) {
     // simulate steps until we reach the desired time
-    if (master.getSimulationTime() < event.current_expected) {
+
+    auto simTime = master.getSimulationTime();
+
+    if (simTime < event.current_expected) {
       master.doStepsUntil(event.current_expected);
-    } else {
+    } else if (simTime > event.current_expected) {
       ROS_WARN("Simulation time %f is greater than timer's time %f. Is your step size to large?",
                master.getSimulationTime().toSec(), event.current_expected.toSec());
     }
-
     // propagate the output values to the publishers
     for (auto const& [identifier, element] : masterOut) {
       const auto& fmu_name = std::get<0>(identifier);
@@ -162,6 +174,7 @@ int main(int argc, char** argv) {
           elVal);
     }
   });
+
 
   ros::spin();
 

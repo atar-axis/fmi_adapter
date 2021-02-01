@@ -5,7 +5,10 @@
   <description>Wraps FMUs for co-simulation</description>
 
   <maintainer email="ralph.lange@de.bosch.com">Ralph Lange</maintainer>
+  <maintainer email="dollinger.florian@gmx.de">Florian Dollinger</maintainer>
+
   <author email="ralph.lange@de.bosch.com">Ralph Lange</author>
+  <author email="dollinger.florian@gmx.de">Florian Dollinger</author>
 
   <license>Apache License 2.0</license>
 
