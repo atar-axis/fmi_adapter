@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <fstream>
 #include <map>
 #include <string>
 #include <variant>
@@ -12,7 +13,9 @@
 #include "FMU.h"
 
 #include <ros/ros.h>
+#include <nlohmann/json.hpp>
 
+using json = nlohmann::json;
 
 namespace fmi_adapter {
 
@@ -46,10 +49,15 @@ class FMIMaster {
     ROS_INFO("Added new Slave FMU to the Master! Path: %s", fmuPath.c_str());
   }
 
-  void config() {
+  void config(const std::string json_path) {
     if (slave_fmus.empty()) {
       ROS_ERROR("Cannot config master. Add Slaves before configuring it!");
     }
+
+    std::ifstream json_stream(json_path);
+    json j;
+    json_stream >> j;
+
 
     for (const auto& [fmuname, fmuptr] : slave_fmus) {
       auto allElements = fmuptr->getCachedVariables();

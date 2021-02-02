@@ -73,6 +73,12 @@ int main(int argc, char** argv) {
   std::vector<std::string> fmuPath;
   boost::split(fmuPath, fmuPaths_string, boost::is_any_of(", "), boost::token_compress_on);
 
+  std::string jsonConfig_file;
+  if (!n.getParam("json_config_path", jsonConfig_file)) {
+    ROS_ERROR("Parameter 'json_config_path' not specified!");
+    throw std::runtime_error("Parameter 'json_config_path' not specified!");
+  }
+
 
   double stepSizeAsDouble = 0.005;
   // n.getParam("step_size", stepSizeAsDouble);
@@ -83,13 +89,13 @@ int main(int argc, char** argv) {
 
 
   auto master = fmi_adapter::FMIMaster(stepSizeAsDouble);
-  for (const auto& fmuPath : fmuPath) {
-    std::string stem = boost::filesystem::path(fmuPath).stem().string();
-    ROS_WARN("adding new slave %s: %s", stem.c_str(), fmuPath.c_str());
-    master.createSlave(stem, fmuPath);
+  for (const auto& fmuPath_element : fmuPath) {
+    std::string stem = boost::filesystem::path(fmuPath_element).stem().string();
+    ROS_WARN("adding new slave %s: %s", stem.c_str(), fmuPath_element.c_str());
+    master.createSlave(stem, fmuPath_element);
   }
   master.initSlavesFromROS(n);
-  master.config();  // ! dummy (pass some config informations here, e.g. a json file)
+  master.config(jsonConfig_file);
 
   ROS_WARN("master inputs:");
   std::map<std::string, ros::Subscriber> subscribers;
