@@ -58,6 +58,9 @@ class FMIMaster {
     json j;
     json_stream >> j;
 
+    std::string dumped = j.dump();
+    ROS_WARN("%s", dumped.c_str());
+
 
     for (const auto& [fmuname, fmuptr] : slave_fmus) {
       auto allElements = fmuptr->getCachedVariables();
