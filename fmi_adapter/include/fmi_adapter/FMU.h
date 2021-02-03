@@ -117,7 +117,6 @@ class FMU {
   std::map<std::string, std::shared_ptr<FMUVariable>> getCachedVariables() const;
   std::shared_ptr<FMUVariable> getCachedVariable(std::string name);
 
-
   // variable type conversion helpers
   template <typename Tin, typename Tout>
   static Tout convert(Tin value);
@@ -170,12 +169,11 @@ class FMU {
 
   // Performs one simulation step usinvectorg the given step size. Argument and state w.r.t. initialization mode
   // are not checked.
-  void _doStep(const ros::Duration& stepSize);
+  void doStep_(const ros::Duration& stepSize);
 
   // Returns the current (external) simulation time (i.e. w.r.t. the time where the FMU simulation started).
   // The state w.r.t. initialization mode is not checked.
   ros::Time getSimulationTimeInternal() const { return ros::Time(fmuTime_) + fmuTimeOffset_; }
-
 
   std::map<std::string, std::shared_ptr<FMUVariable>> cachedVariables{};
   void cacheVariables_fmu();

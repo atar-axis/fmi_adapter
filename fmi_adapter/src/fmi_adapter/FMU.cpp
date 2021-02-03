@@ -33,13 +33,15 @@
 
 #include <fmilib.h>
 
+#include <boost/regex.hpp>
+
+
 // !!!!!!!   !!!!!   !!!!!!    !!!!!
 //   !!!    !!! !!!  !!! !!!  !!! !!!
 //   !!!    !!! !!!  !!! !!!  !!! !!!
 //   !!!     !!!!!   !!!!!!    !!!!!
 
 // TODO: * Add fmi2_base_type_str and enum?
-// TODO: * Add a more sophisticated master to connect more than one FMU
 
 
 namespace fmi_adapter {
@@ -223,18 +225,9 @@ FMU::~FMU() {
  */
 std::string FMU::rosifyName(const std::string& name) {
   std::string result = name;
-  for (size_t i = 0; i < result.size(); ++i) {
-    char c = result[i];
-    if (('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || ('0' <= c && c <= '9') || c == '_') {
-      // Keep valid char
-    } else {
-      result[i] = '_';
-    }
-  }
 
-  while (result.length() > 0 && result[0] == '_') {
-    result.erase(0, 1);
-  }
+  boost::regex reInvalidCharacters("[^a-zA-Z0-9_]+");
+  boost::regex_replace(name, reInvalidCharacters, result);
 
   return result;
 }
@@ -289,7 +282,7 @@ void FMU::exitInitializationMode(ros::Time externalStartTime) {
   }
 }
 
-void FMU::_doStep(const ros::Duration& stepSize) {
+void FMU::doStep_(const ros::Duration& stepSize) {
   for (auto& [name, variable] :
        cachedVariables | boost::adaptors::filtered(fmi_adapter::FMUVariable::varInput_filter)) {
     (void)name;
@@ -336,7 +329,7 @@ ros::Time FMU::doStep() {
     throw std::runtime_error("FMU is still in initialization mode!");
   }
 
-  _doStep(stepSize_);
+  doStep_(stepSize_);
 
   return getSimulationTimeInternal();
 }
@@ -349,7 +342,7 @@ ros::Time FMU::doStep(const ros::Duration& stepSize) {
     throw std::runtime_error("FMU is still in initialization mode!");
   }
 
-  _doStep(stepSize);
+  doStep_(stepSize);
 
   return getSimulationTimeInternal();
 }
@@ -359,16 +352,14 @@ ros::Time FMU::doStepsUntil(const ros::Time& simulationTime) {
     throw std::runtime_error("FMU is still in initialization mode!");
   }
 
-  // ROS_WARN("oans");
   fmi2_real_t targetFMUTime = (simulationTime - fmuTimeOffset_).toSec();
-  // ROS_WARN("zwoa");
   if (targetFMUTime < fmuTime_ - stepSize_.toSec() / 2.0) {  // Subtract stepSize/2 for rounding.
     ROS_ERROR("Given time %f is before current simulation time %f!", targetFMUTime, fmuTime_);
     throw std::invalid_argument("Given time is before current simulation time!");
   }
 
   while (fmuTime_ + stepSize_.toSec() / 2.0 < targetFMUTime) {
-    _doStep(stepSize_);
+    doStep_(stepSize_);
   }
 
   return getSimulationTimeInternal();
@@ -480,6 +471,5 @@ fmi2_import_t* FMU::getRawFMU() {
   assert(fmu_);
   return fmu_;
 }
-
 
 }  // namespace fmi_adapter
