@@ -16,8 +16,6 @@
 #include <nlohmann/json.hpp>
 
 #include <boost/filesystem.hpp>  // for path
-#include <boost/range/adaptor/filtered.hpp>
-
 
 namespace fmi_adapter {
 
@@ -38,8 +36,6 @@ class FMIMaster {
       const auto sourceName_signal = sourceName.substr(sourceName.find('.') + 1);
       const auto result = slave_fmus[sourceName_fmu]->getCachedVariable(sourceName_signal)->getValue();
 
-      // std::cout << sourceName_fmu << ":" << sourceName_signal << ":" << std::get<int>(result) << std::endl;
-
       for (auto sinkName : sinkArray) {
         const auto sinkName_fmu = sinkName.get<std::string>().substr(0, sinkName.get<std::string>().find('.'));
         const auto sinkName_signal = sinkName.get<std::string>().substr(sinkName.get<std::string>().find('.') + 1);
@@ -48,16 +44,6 @@ class FMIMaster {
     }
   }
 
-
- public:
-  FMIMaster(double stepSize) : stepSize(stepSize) { ROS_INFO("FMI Master created"); }
-  ~FMIMaster() = default;
-
-  // Copy and assignments not allowed
-  FMIMaster(const FMIMaster& other) = delete;
-  FMIMaster& operator=(const FMIMaster&) = delete;
-
-  // add a new FMU
   void createSlave(std::string unique_name, std::string fmuPath) {
     // Check if the name is really unique
     if (slave_fmus.find(unique_name) != slave_fmus.end()) {
@@ -69,6 +55,14 @@ class FMIMaster {
     slave_fmus.insert(std::make_pair(unique_name, std::make_unique<FMU>(fmuPath, ros::Duration(stepSize))));
     ROS_INFO("Added new Slave FMU to the Master! Path: %s", fmuPath.c_str());
   }
+
+ public:
+  FMIMaster(double stepSize) : stepSize(stepSize) { ROS_INFO("FMI Master created"); }
+  ~FMIMaster() = default;
+
+  // Copy and assignments not allowed
+  FMIMaster(const FMIMaster& other) = delete;
+  FMIMaster& operator=(const FMIMaster&) = delete;
 
   void config(const std::string json_path) {
     std::ifstream json_stream(json_path);
@@ -116,7 +110,6 @@ class FMIMaster {
 
   void exitInitModeSlaves(ros::Time simulationTime) {
     // Complete the Initialization, i.e. set the starttime
-    ROS_WARN("Exiting Init Mode ...");
     for (auto& [fmuname, fmuptr] : slave_fmus) {
       (void)fmuname;  // variable 'name' is currently unused
 
@@ -146,12 +139,6 @@ class FMIMaster {
   }
 
   void setInputValue(std::string fmuName, std::string portName, ros::Time when, valueVariantTypes value) {
-    //! rm:
-    //! std::visit(
-    //!     [&fmuName](const auto& variant) {
-    //!       std::cout << "setting input value for " << fmuName << ": " << variant << std::endl;
-    //!     },
-    //!     value);
     slave_fmus[fmuName]->setInputValue(portName, when, value);
     return;
   }
