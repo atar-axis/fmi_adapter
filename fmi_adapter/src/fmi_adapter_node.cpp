@@ -70,8 +70,8 @@ int main(int argc, char** argv) {
     throw std::runtime_error("Parameter 'json_config_path' not specified!");
   }
 
-  double stepSizeAsDouble = 0.005;
-  // n.getParam("step_size", stepSizeAsDouble);
+  double stepSizeAsDouble = 0.001;
+  n.getParam("step_size", stepSizeAsDouble);
   ros::Duration stepSize(stepSizeAsDouble);
 
   double updatePeriod = 0.01;  // Default is 0.01s
@@ -165,7 +165,6 @@ int main(int argc, char** argv) {
           elVal);
     }
   });
-
 
   ros::spin();
 

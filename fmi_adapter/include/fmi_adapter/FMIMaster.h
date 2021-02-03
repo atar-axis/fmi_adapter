@@ -46,8 +46,8 @@ class FMIMaster {
 
   void createSlave(std::string unique_name, std::string fmuPath) {
     // Check if the name is really unique
-    if (slave_fmus.find(unique_name) != slave_fmus.end()) {
-      ROS_WARN("A slave named %s already exists in this master! Not added!", unique_name.c_str());
+    if (slave_fmus.count(unique_name) != 0) {
+      ROS_WARN("A slave named %s already exists in this master but names need to be unique (not added therefore)!", unique_name.c_str());
       return;
     }
 
@@ -71,7 +71,7 @@ class FMIMaster {
     auto fmuEntries = jsonConfig["fmus"];
     auto exposeEntries = jsonConfig["expose"];
 
-    if (fmuEntries.size() == 0) ROS_ERROR("Error! No FMUs specified in the config file");
+    if (fmuEntries.empty()) ROS_ERROR("Error! No FMUs specified in the config file");
 
     for (auto [fmuName, fmuPathRelative] : fmuEntries.items()) {
       boost::filesystem::path canonicalFmuPath = boost::filesystem::canonical(
@@ -80,7 +80,7 @@ class FMIMaster {
       createSlave(fmuName, canonicalFmuPath.string());
     }
 
-    if (exposeEntries.size() == 0) ROS_WARN("Warning! No slave signals are exposed, seems a bit useless?");
+    if (exposeEntries.empty()) ROS_WARN("Warning! No slave signals are exposed, seems a bit useless?");
 
     for (auto [exposedFmu, exposedFmuSignals] : exposeEntries.items()) {
       for (auto signalName : exposedFmuSignals) {
