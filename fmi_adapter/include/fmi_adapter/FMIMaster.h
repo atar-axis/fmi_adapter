@@ -15,8 +15,8 @@
 #include <ros/ros.h>
 #include <nlohmann/json.hpp>
 
+#include <boost/filesystem.hpp>  // for path
 #include <boost/range/adaptor/filtered.hpp>
-#include <boost/range/algorithm/copy.hpp>
 
 
 namespace fmi_adapter {
@@ -71,37 +71,32 @@ class FMIMaster {
   }
 
   void config(const std::string json_path) {
-    if (slave_fmus.empty()) {
-      ROS_ERROR("Cannot config master. Add Slaves before configuring it!");
-    }
-
     std::ifstream json_stream(json_path);
     json_stream >> jsonConfig;
 
-    std::string dumped = jsonConfig["connections"].dump();
-    ROS_WARN("connecting the slave in/outputs as follows: %s", dumped.c_str());
+    auto fmuEntries = jsonConfig["fmus"];
+    auto exposeEntries = jsonConfig["expose"];
 
+    if (fmuEntries.size() == 0) ROS_ERROR("Error! No FMUs specified in the config file");
 
-    for (auto [exposedFmu, exposedFmuSignals] : jsonConfig["expose"].items()) {
-      ROS_WARN("exposing from fmu: %s", exposedFmu.c_str());
+    for (auto [fmuName, fmuPathRelative] : fmuEntries.items()) {
+      boost::filesystem::path canonicalFmuPath = boost::filesystem::canonical(
+          boost::filesystem::path(fmuPathRelative), boost::filesystem::path(json_path).parent_path());
+      ROS_WARN("adding new slave %s: %s", fmuName, canonicalFmuPath.string().c_str());
+      createSlave(fmuName, canonicalFmuPath.string());
+    }
+
+    if (exposeEntries.size() == 0) ROS_WARN("Warning! No slave signals are exposed, seems a bit useless?");
+
+    for (auto [exposedFmu, exposedFmuSignals] : exposeEntries.items()) {
       for (auto signalName : exposedFmuSignals) {
-        ROS_WARN("* signal: %s", signalName.get<std::string>().c_str());
-
-        ROS_WARN("get variable");
         std::shared_ptr variable = slave_fmus.at(exposedFmu)->getCachedVariable(signalName);
 
-        ROS_WARN("get causality of variable");
-        auto causality = variable->getCausalityRaw();
-
-        ROS_WARN("switching on causality of variable");
-
-        switch (causality) {
+        switch (variable->getCausalityRaw()) {
           case fmi2_causality_enu_input:
-            ROS_WARN("forwarding input");
             master_inputs.insert(std::make_pair(std::make_pair(exposedFmu, signalName.get<std::string>()), variable));
             break;
           case fmi2_causality_enu_output:
-            ROS_WARN("forwarding output");
             master_outputs.insert(std::make_pair(std::make_pair(exposedFmu, signalName.get<std::string>()), variable));
             break;
           default:
