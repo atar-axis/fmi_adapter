@@ -33,14 +33,17 @@ class FMIMaster {
   nlohmann::json jsonConfig{};
 
   void propagateResults() {
-    for (auto source : jsonConfig["connections"]) {
-      auto fmuName = source[0].get<std::string>();
+    for (auto [sourceName, sinkArray] : jsonConfig["connections"].items()) {
+      const auto sourceName_fmu = sourceName.substr(0, sourceName.find('.'));
+      const auto sourceName_signal = sourceName.substr(sourceName.find('.') + 1);
+      const auto result = slave_fmus[sourceName_fmu]->getCachedVariable(sourceName_signal)->getValue();
 
-      // const auto signalName = fmuName.substr(0, fmuName.find('.'));
-      // const auto result = slave_fmus[signalName]->getValue();
+      // std::cout << sourceName_fmu << ":" << sourceName_signal << ":" << std::get<int>(result) << std::endl;
 
-      for (auto sink : source) {
-        // ROS_WARN("* to: %s", sink.get<std::string>().c_str());
+      for (auto sinkName : sinkArray) {
+        const auto sinkName_fmu = sinkName.get<std::string>().substr(0, sinkName.get<std::string>().find('.'));
+        const auto sinkName_signal = sinkName.get<std::string>().substr(sinkName.get<std::string>().find('.') + 1);
+        slave_fmus[sinkName_fmu]->setInputValue(sinkName_signal, ros::Time::now(), result);
       }
     }
   }
@@ -91,6 +94,7 @@ class FMIMaster {
         auto causality = variable->getCausalityRaw();
 
         ROS_WARN("switching on causality of variable");
+
         switch (causality) {
           case fmi2_causality_enu_input:
             ROS_WARN("forwarding input");
@@ -147,6 +151,11 @@ class FMIMaster {
   }
 
   void setInputValue(std::string fmuName, std::string portName, ros::Time when, valueVariantTypes value) {
+    std::visit(
+        [&fmuName](const auto& variant) {
+          std::cout << "setting input value for " << fmuName << ": " << variant << std::endl;
+        },
+        value);
     slave_fmus[fmuName]->setInputValue(portName, when, value);
     return;
   }
