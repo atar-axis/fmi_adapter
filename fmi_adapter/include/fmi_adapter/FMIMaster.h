@@ -151,11 +151,12 @@ class FMIMaster {
   }
 
   void setInputValue(std::string fmuName, std::string portName, ros::Time when, valueVariantTypes value) {
-    std::visit(
-        [&fmuName](const auto& variant) {
-          std::cout << "setting input value for " << fmuName << ": " << variant << std::endl;
-        },
-        value);
+    //! rm:
+    //! std::visit(
+    //!     [&fmuName](const auto& variant) {
+    //!       std::cout << "setting input value for " << fmuName << ": " << variant << std::endl;
+    //!     },
+    //!     value);
     slave_fmus[fmuName]->setInputValue(portName, when, value);
     return;
   }
