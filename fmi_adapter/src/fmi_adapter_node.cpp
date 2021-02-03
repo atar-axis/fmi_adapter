@@ -102,8 +102,8 @@ int main(int argc, char** argv) {
   auto masterIn = master.getInputs();
 
   for (auto const& [identifier, element] : masterIn) {
-    const auto& fmu_name = std::get<0>(identifier);
-    const auto& port_name = std::get<1>(identifier);
+    const auto& fmu_name = identifier.first;
+    const auto& port_name = identifier.second;
     const auto rosName = fmu_name + "___" + port_name;
 
     ROS_WARN("* %s->%s", fmu_name.c_str(), port_name.c_str());
@@ -129,8 +129,8 @@ int main(int argc, char** argv) {
 
   // Create a publisher topic for every output
   for (auto const& [identifier, element] : masterOut) {
-    const auto& fmu_name = std::get<0>(identifier);
-    const auto& port_name = std::get<1>(identifier);
+    const auto& fmu_name = identifier.first;
+    const auto& port_name = identifier.second;
     const auto rosName = fmu_name + "___" + port_name;
 
     ROS_WARN("* %s->%s", fmu_name.c_str(), port_name.c_str());
@@ -163,8 +163,8 @@ int main(int argc, char** argv) {
     }
     // propagate the output values to the publishers
     for (auto const& [identifier, element] : masterOut) {
-      const auto& fmu_name = std::get<0>(identifier);
-      const auto& port_name = std::get<1>(identifier);
+      const auto& fmu_name = identifier.first;
+      const auto& port_name = identifier.second;
       const auto rosName = fmu_name + "___" + port_name;
 
       auto elVal = element->getValue();

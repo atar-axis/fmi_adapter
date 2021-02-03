@@ -8,16 +8,16 @@
 namespace fmi_adapter {
 
 
-bool FMUVariable::varInput_filter(std::shared_ptr<FMUVariable> variable) {
-  return variable->getCausalityRaw() == fmi2_causality_enu_input;
+bool FMUVariable::varInput_filter(std::pair<std::string, std::shared_ptr<FMUVariable>> variable) {
+  return variable.second->getCausalityRaw() == fmi2_causality_enu_input;
 }
 
-bool FMUVariable::varOutput_filter(std::shared_ptr<FMUVariable> variable) {
-  return variable->getCausalityRaw() == fmi2_causality_enu_output;
+bool FMUVariable::varOutput_filter(std::pair<std::string, std::shared_ptr<FMUVariable>> variable) {
+  return variable.second->getCausalityRaw() == fmi2_causality_enu_output;
 }
 
-bool FMUVariable::varParam_filter(std::shared_ptr<FMUVariable> variable) {
-  return variable->getCausalityRaw() == fmi2_causality_enu_parameter;
+bool FMUVariable::varParam_filter(std::pair<std::string, std::shared_ptr<FMUVariable>> variable) {
+  return variable.second->getCausalityRaw() == fmi2_causality_enu_parameter;
 }
 
 std::string FMUVariable::rosifyName(const std::string& rawName) const {

@@ -15,17 +15,35 @@
 #include <ros/ros.h>
 #include <nlohmann/json.hpp>
 
-using json = nlohmann::json;
+#include <boost/range/adaptor/filtered.hpp>
+#include <boost/range/algorithm/copy.hpp>
+
 
 namespace fmi_adapter {
 
 class FMIMaster {
+ private:
   std::map<std::string, std::unique_ptr<FMU>> slave_fmus{};
 
-  std::map<std::tuple<std::string, std::string>, std::shared_ptr<FMUVariable>> master_inputs{};
-  std::map<std::tuple<std::string, std::string>, std::shared_ptr<FMUVariable>> master_outputs{};
+  std::map<std::pair<std::string, std::string>, std::shared_ptr<FMUVariable>> master_inputs{};
+  std::map<std::pair<std::string, std::string>, std::shared_ptr<FMUVariable>> master_outputs{};
 
   double stepSize;
+
+  nlohmann::json jsonConfig{};
+
+  void propagateResults() {
+    for (auto source : jsonConfig["connections"]) {
+      auto fmuName = source[0].get<std::string>();
+
+      // const auto signalName = fmuName.substr(0, fmuName.find('.'));
+      // const auto result = slave_fmus[signalName]->getValue();
+
+      for (auto sink : source) {
+        // ROS_WARN("* to: %s", sink.get<std::string>().c_str());
+      }
+    }
+  }
 
 
  public:
@@ -55,26 +73,36 @@ class FMIMaster {
     }
 
     std::ifstream json_stream(json_path);
-    json j;
-    json_stream >> j;
+    json_stream >> jsonConfig;
 
-    std::string dumped = j.dump();
-    ROS_WARN("%s", dumped.c_str());
+    std::string dumped = jsonConfig["connections"].dump();
+    ROS_WARN("connecting the slave in/outputs as follows: %s", dumped.c_str());
 
 
-    for (const auto& [fmuname, fmuptr] : slave_fmus) {
-      auto allElements = fmuptr->getCachedVariables();
+    for (auto [exposedFmu, exposedFmuSignals] : jsonConfig["expose"].items()) {
+      ROS_WARN("exposing from fmu: %s", exposedFmu.c_str());
+      for (auto signalName : exposedFmuSignals) {
+        ROS_WARN("* signal: %s", signalName.get<std::string>().c_str());
 
-      // TODO: forward outputs from slaves to master (but not all)
-      for (auto const output : allElements | boost::adaptors::filtered(fmi_adapter::FMUVariable::varOutput_filter)) {
-        // std::string outputName = "___" + name + "___" + output->getNameRaw();
-        master_outputs.insert(std::make_pair(std::make_tuple(fmuname, output->getNameRaw()), output));
-      }
+        ROS_WARN("get variable");
+        std::shared_ptr variable = slave_fmus.at(exposedFmu)->getCachedVariable(signalName);
 
-      // TODO: forward inputs from master to slaves (but not all)
-      for (auto const input : allElements | boost::adaptors::filtered(fmi_adapter::FMUVariable::varInput_filter)) {
-        // std::string inputName = "___" + name + "___" + input->getNameRaw();
-        master_inputs.insert(std::make_pair(std::make_tuple(fmuname, input->getNameRaw()), input));
+        ROS_WARN("get causality of variable");
+        auto causality = variable->getCausalityRaw();
+
+        ROS_WARN("switching on causality of variable");
+        switch (causality) {
+          case fmi2_causality_enu_input:
+            ROS_WARN("forwarding input");
+            master_inputs.insert(std::make_pair(std::make_pair(exposedFmu, signalName.get<std::string>()), variable));
+            break;
+          case fmi2_causality_enu_output:
+            ROS_WARN("forwarding output");
+            master_outputs.insert(std::make_pair(std::make_pair(exposedFmu, signalName.get<std::string>()), variable));
+            break;
+          default:
+            ROS_WARN("cannot expose variables other than input or output");
+        }
       }
     }
   }
@@ -83,9 +111,6 @@ class FMIMaster {
     for (auto& [fmuname, fmuptr] : slave_fmus) {
       (void)fmuname;  // variable 'name' is currently unused
 
-      // TODO: Is it really a good idea to simply pass the variable?
-      // TODO: Maybe we should do some work here instead of doing it in the slaves?
-      // TODO: What are those Parameters even? What are they good for?
       fmuptr->initializeFromROSParameters(wrappingNode);
     }
   }
@@ -110,15 +135,14 @@ class FMIMaster {
       fmuptr->doStepsUntil(simulationTime);
     }
 
-    // TODO: process as configured, i.e. store the results somewhere for the next step
-    // ? When are those values exchanged between the slaves?! On every Step?
+    propagateResults();
   }
 
-  const std::map<std::tuple<std::string, std::string>, std::shared_ptr<FMUVariable>>& getOutputs() {
+  const std::map<std::pair<std::string, std::string>, std::shared_ptr<FMUVariable>>& getOutputs() {
     return master_outputs;
   }
 
-  const std::map<std::tuple<std::string, std::string>, std::shared_ptr<FMUVariable>>& getInputs() {
+  const std::map<std::pair<std::string, std::string>, std::shared_ptr<FMUVariable>>& getInputs() {
     return master_inputs;
   }
 

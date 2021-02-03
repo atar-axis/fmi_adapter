@@ -51,9 +51,9 @@ class FMUVariable {
   fmi2_value_reference_t getValueReference() const;
 
   // filters for use in boost::adaptors::filtered
-  static bool varInput_filter(std::shared_ptr<FMUVariable> variable);
-  static bool varOutput_filter(std::shared_ptr<FMUVariable> variable);
-  static bool varParam_filter(std::shared_ptr<FMUVariable> variable);
+  static bool varInput_filter(std::pair<std::string, std::shared_ptr<FMUVariable>> variable);
+  static bool varOutput_filter(std::pair<std::string, std::shared_ptr<FMUVariable>> variable);
+  static bool varParam_filter(std::pair<std::string, std::shared_ptr<FMUVariable>> variable);
 
   valueVariantTypes getValue();
   void setValue(valueVariantTypes value);
