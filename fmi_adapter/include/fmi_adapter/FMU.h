@@ -127,14 +127,15 @@ class FMU {
   const std::string fmuPath_;
   // Step size for the FMU simulation
   ros::Duration stepSize_;
+  // Interpolate the input signals (as continuous), or not (piecewise constant)
+  bool interpolateInput_{false};
   // Path to folder for temporary extraction of the FMU archive
   std::string tmpPath_;
   // If given tmp path is "", then an arbitrary one in /tmp is used. Remove this folder
   bool removeTmpPathInDtor_{false};
   // Is the FMU is still in init mode
   bool inInitializationMode_{true};
-  // Interpolate the input signals (as continuous), or not (piecewise constant)
-  bool interpolateInput_;
+
   // The internal FMU simulation time
   double fmuTime_{0.0};
   // Offset between the FMU's time and the ROS simulation time, used for doStep*(..) and setValue(..)
