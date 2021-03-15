@@ -63,8 +63,7 @@ class FMU {
 
   virtual ~FMU();
 
-  // This helper function returns a ROSified version of the given variable name for use with ROS parameters.
-  // It simply replaces all special charaters not supported by ROS with an '_'.
+  // Returns a ROSified version of the given variable name, replaces all not supported characters with '_'.
   static std::string rosifyName(const std::string& name);
 
   // Returns true if the FMU of this instances supports a variable communication step-size.
@@ -141,7 +140,7 @@ class FMU {
   // Offset between the FMU's time and the ROS simulation time, used for doStep*(..) and setValue(..)
   ros::Duration rosTimeOffset_{0.0};
   // Stores the FMU Variables
-  std::map<std::string, std::shared_ptr<FMUVariable>> cachedVariables{};
+  std::map<std::string, std::shared_ptr<FMUVariable>> cachedVariables_{};
   // Stores the mapping from timestamps to variable values for the FMU simulation
   std::map<fmi2_import_variable_t*, std::map<ros::Time, valueVariantTypes>> inputValuesByVariable_{};
 
@@ -158,9 +157,9 @@ class FMU {
   // Performs one simulation step using the given step size. Argument and initialization mode not checked.
   void doStep_(const ros::Duration& stepSize);
   // Returns the current simulation time w.r.t. the time where the FMU simulation started in ROS.
-  ros::Time getSimTimeForROS() const { return ros::Time(fmuTime_) + rosTimeOffset_; }
+  ros::Time getSimTimeForROS_() const { return ros::Time(fmuTime_) + rosTimeOffset_; }
   // Fill the FMU Variables Map
-  void cacheVariables_fmu();
+  void cacheVariables_();
 };
 
 }  // namespace fmi_adapter
