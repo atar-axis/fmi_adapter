@@ -31,17 +31,25 @@ class FMIMaster {
   nlohmann::json jsonConfig{};
 
   void propagateResults() {
-    for (auto [sourceName, sinkArray] : jsonConfig["connections"].items()) {
-      const auto sourceName_fmu = sourceName.substr(0, sourceName.find('.'));
-      const auto sourceName_signal = sourceName.substr(sourceName.find('.') + 1);
-      const auto result = slave_fmus[sourceName_fmu]->getCachedVariable(sourceName_signal)->getValue();
+    try {
+      for (auto [sourceName, sinkArray] : jsonConfig["connections"].items()) {
+        const auto sourceName_fmu = sourceName.substr(0, sourceName.find('.'));
+        const auto sourceName_signal = sourceName.substr(sourceName.find('.') + 1);
+        const auto result = slave_fmus[sourceName_fmu]->getCachedVariable(sourceName_signal)->getValue();
 
-      for (auto sinkName : sinkArray) {
-        const auto sinkName_fmu = sinkName.get<std::string>().substr(0, sinkName.get<std::string>().find('.'));
-        const auto sinkName_signal = sinkName.get<std::string>().substr(sinkName.get<std::string>().find('.') + 1);
-        slave_fmus[sinkName_fmu]->setInputValue(sinkName_signal, ros::Time::now(), result);
+        for (auto sinkName : sinkArray) {
+          const auto sinkName_fmu = sinkName.get<std::string>().substr(0, sinkName.get<std::string>().find('.'));
+          const auto sinkName_signal = sinkName.get<std::string>().substr(sinkName.get<std::string>().find('.') + 1);
+          slave_fmus[sinkName_fmu]->setInputValue(sinkName_signal, ros::Time::now(), result);
+        }
       }
-    }
+    } catch (const std::out_of_range& oor) {
+      ROS_FATAL(
+          "There seems to be a problem with your inter-component connections. "
+          "Please make sure you named them as in the FMUS.\n Error: %s", oor.what());
+     } catch (...) {
+       ROS_FATAL("Unknown Error while propagating the results.");
+     }
   }
 
   void createSlave(std::string unique_name, std::string fmuPath) {
@@ -69,35 +77,49 @@ class FMIMaster {
     json_stream >> jsonConfig;
 
     auto fmuEntries = jsonConfig["fmus"];
-    auto exposeEntries = jsonConfig["expose"];
-
-    if (fmuEntries.empty()) ROS_ERROR("Error! No FMUs specified in the config file");
+    if (fmuEntries.empty()) ROS_FATAL("Error! No FMUs specified in the config file");
 
     for (auto [fmuName, fmuPathRelative] : fmuEntries.items()) {
       boost::filesystem::path canonicalFmuPath = boost::filesystem::canonical(
           boost::filesystem::path(fmuPathRelative), boost::filesystem::path(json_path).parent_path());
-      ROS_WARN("adding new slave %s: %s", fmuName, canonicalFmuPath.string().c_str());
+      ROS_WARN("adding new slave %s: %s", fmuName.c_str(), canonicalFmuPath.string().c_str());
       createSlave(fmuName, canonicalFmuPath.string());
     }
 
+
+    auto exposeEntries = jsonConfig["expose"];
     if (exposeEntries.empty()) ROS_WARN("Warning! No slave signals are exposed, seems a bit useless?");
 
-    for (auto [exposedFmu, exposedFmuSignals] : exposeEntries.items()) {
-      for (auto signalName : exposedFmuSignals) {
-        std::shared_ptr variable = slave_fmus.at(exposedFmu)->getCachedVariable(signalName);
 
-        switch (variable->getCausalityRaw()) {
-          case fmi2_causality_enu_input:
-            master_inputs.insert(std::make_pair(std::make_pair(exposedFmu, signalName.get<std::string>()), variable));
-            break;
-          case fmi2_causality_enu_output:
-            master_outputs.insert(std::make_pair(std::make_pair(exposedFmu, signalName.get<std::string>()), variable));
-            break;
-          default:
-            ROS_WARN("cannot expose variables other than input or output");
+    for (auto exposedEntry : exposeEntries) {
+
+
+        auto signalDelimiter = exposedEntry.get<std::string>().find(".");
+        auto exposedFmu = exposedEntry.get<std::string>().substr(0, signalDelimiter);
+        auto signalName = exposedEntry.get<std::string>().substr(signalDelimiter + 1);
+
+        try {
+          std::shared_ptr variable = slave_fmus.at(exposedFmu)->getCachedVariable(signalName);
+
+          switch (variable->getCausalityRaw()) {
+            case fmi2_causality_enu_input:
+              master_inputs.insert(std::make_pair(std::make_pair(exposedFmu, signalName), variable));
+              break;
+            case fmi2_causality_enu_output:
+              master_outputs.insert(std::make_pair(std::make_pair(exposedFmu, signalName), variable));
+              break;
+            default:
+              ROS_WARN("cannot expose variables other than input or output");
+          }
+          ROS_FATAL("exposed %s.%s", exposedFmu.c_str(), signalName.c_str());
+        } catch (...) {
+          ROS_FATAL("error while exposing %s.%s", exposedFmu.c_str(), signalName.c_str());
         }
-      }
     }
+
+    ROS_WARN("Checking connections between components...\n");
+    propagateResults();
+
   }
 
   void initSlavesFromROS(const ros::NodeHandle& wrappingNode) {
@@ -120,11 +142,14 @@ class FMIMaster {
     ROS_WARN("Exiting Init Mode done!");
   }
 
-  void doStepsUntil(const ros::Time& simulationTime) {
+  void doStepsUntil(const ros::Time simulationTime) {
     for (auto& [fmuname, fmuptr] : slave_fmus) {
       (void)fmuname;  // variable 'name' is currently unused
 
+      ROS_WARN("dbg: doing steps for slave");
       fmuptr->doStepsUntil(simulationTime);
+      ROS_WARN("dbg: done");
+
     }
 
     propagateResults();
