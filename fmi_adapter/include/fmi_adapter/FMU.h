@@ -126,56 +126,40 @@ class FMU {
  private:
   // Path of the FMU being wrapped by this instance.
   const std::string fmuPath_;
-
-  // Step size for the FMU simulation.
+  // Step size for the FMU simulation
   ros::Duration stepSize_;
-
-  // States whether between input values should be considered as continuous, piecewise linear
-  // signal (true) or as non-continuous, piecewise constant signal (false).
-  bool interpolateInput_;
-
-  // Path to folder for extracting the FMU file temporarilly.
+  // Path to folder for temporary extraction of the FMU archive
   std::string tmpPath_;
-
-  // In case that a random folder /tmp is being used (i.e. if given tmp path is ""), clean up this folder in dtor.
+  // If given tmp path is "", then an arbitrary one in /tmp is used. Remove this folder
   bool removeTmpPathInDtor_{false};
-
+  // Is the FMU is still in init mode
   bool inInitializationMode_{true};
-
-  // Offset between the FMU's simulation time and the ROS-based simulation time for doStep*(..) and setValue(..)
-  ros::Duration fmuTimeOffset_{0.0};
-
-  // The current FMU's simulation time. It is fmuTime_ = simulationTime_ - fmuTimeOffset_.
+  // Interpolate the input signals (as continuous), or not (piecewise constant)
+  bool interpolateInput_;
+  // The internal FMU simulation time
   double fmuTime_{0.0};
+  // Offset between the FMU's time and the ROS simulation time, used for doStep*(..) and setValue(..)
+  ros::Duration rosTimeOffset_{0.0};
+  // Stores the FMU Variables
+  std::map<std::string, std::shared_ptr<FMUVariable>> cachedVariables{};
+  // Stores the mapping from timestamps to variable values for the FMU simulation
+  std::map<fmi2_import_variable_t*, std::map<ros::Time, valueVariantTypes>> inputValuesByVariable_{};
 
-  // The current ROS-based simulation time. It is fmuTime_ = simulationTime_ - fmuTimeOffset_.
-  ros::Time simulationTime_{0.0};
-
-  // Pointer from the FMU Library types to the FMU instance.
+  // Pointer from the FMU Library types to the FMU instance
   fmi2_import_t* fmu_{nullptr};
-
-  // Pointer from the FMU Library types to the FMU context.
+  // Pointer from the FMU Library types to the FMU context
   fmi_import_context_t* context_{nullptr};
-
   // Callback functions for FMI Library. Cannot use type fmi2_callback_functions_t here as it is a typedef of an
   // anonymous struct, cf. https://stackoverflow.com/questions/7256436/forward-declarations-of-unnamed-struct
   void* fmiCallbacks_{nullptr};
-
-  // Further callback functions for FMI Library.
+  // Further callback functions for FMI Library
   jm_callbacks* jmCallbacks_{nullptr};
 
-  // Stores the mapping from timestamps to variable values for the FMU simulation.
-  std::map<fmi2_import_variable_t*, std::map<ros::Time, valueVariantTypes>> inputValuesByVariable_{};
-
-  // Performs one simulation step usinvectorg the given step size. Argument and state w.r.t. initialization mode
-  // are not checked.
+  // Performs one simulation step using the given step size. Argument and initialization mode not checked.
   void doStep_(const ros::Duration& stepSize);
-
-  // Returns the current (external) simulation time (i.e. w.r.t. the time where the FMU simulation started).
-  // The state w.r.t. initialization mode is not checked.
-  ros::Time getSimulationTimeInternal() const { return ros::Time(fmuTime_) + fmuTimeOffset_; }
-
-  std::map<std::string, std::shared_ptr<FMUVariable>> cachedVariables{};
+  // Returns the current simulation time w.r.t. the time where the FMU simulation started in ROS.
+  ros::Time getSimTimeForROS() const { return ros::Time(fmuTime_) + rosTimeOffset_; }
+  // Fill the FMU Variables Map
   void cacheVariables_fmu();
 };
 

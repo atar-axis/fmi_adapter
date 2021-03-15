@@ -266,8 +266,7 @@ void FMU::exitInitializationMode(ros::Time externalStartTime) {
   // because the FMUs are loaded a bit later. Therefore, remember the time
   // where it started in order to know how much to calculate later on
   // in doStepsUtil (since the ros time is passed, not the fmu time)
-  fmuTimeOffset_ = externalStartTime - ros::Time(0.0);
-  assert(fmuTime_ == 0.0);
+  rosTimeOffset_ = externalStartTime - ros::Time(0.0);
 
   // TODO: What is it good for? Document!
   for (auto& [name, variable] :
@@ -280,6 +279,8 @@ void FMU::exitInitializationMode(ros::Time externalStartTime) {
       inputValues[externalStartTime] = value;
     }
   }
+
+  ROS_WARN("fmu is leaving init mode at %ld", rosTimeOffset_);
 }
 
 void FMU::doStep_(const ros::Duration& stepSize) {
@@ -290,23 +291,23 @@ void FMU::doStep_(const ros::Duration& stepSize) {
         inputValuesByVariable_[variable->getVariablePointerRaw()];
 
     // Make sure that there are InputValues, at least for the simulation start
-    assert(!inputValuesByTime.empty() && (inputValuesByTime.begin()->first - fmuTimeOffset_).toSec() <= fmuTime_);
+    assert(!inputValuesByTime.empty() && (inputValuesByTime.begin()->first - rosTimeOffset_).toSec() <= fmuTime_);
 
     // Remove Values in the past
     while (inputValuesByTime.size() >= 2 &&
-           (std::next(inputValuesByTime.begin())->first - fmuTimeOffset_).toSec() <= fmuTime_) {
+           (std::next(inputValuesByTime.begin())->first - rosTimeOffset_).toSec() <= fmuTime_) {
       inputValuesByTime.erase(inputValuesByTime.begin());
     }
 
     // Make sure that there are STILL InputValues, at least for the simulation start
-    assert(!inputValuesByTime.empty() && (inputValuesByTime.begin()->first - fmuTimeOffset_).toSec() <= fmuTime_);
+    assert(!inputValuesByTime.empty() && (inputValuesByTime.begin()->first - rosTimeOffset_).toSec() <= fmuTime_);
 
     valueVariantTypes value = inputValuesByTime.begin()->second;
 
     // TODO: Interpolation
     // if (interpolateInput_ && inputValues.size() > 1) {
-    //   double t0 = (inputValues.begin()->first - fmuTimeOffset_).toSec();
-    //   double t1 = (std::next(inputValues.begin())->first - fmuTimeOffset_).toSec();
+    //   double t0 = (inputValues.begin()->first - rosTimeOffset_).toSec();
+    //   double t1 = (std::next(inputValues.begin())->first - rosTimeOffset_).toSec();
     //   double weight = (t1 - fmuTime_) / (t1 - t0);
     //   valueVariantTypes x0 = value;
     //   valueVariantTypes x1 = std::next(inputValues.begin())->second;
@@ -331,7 +332,7 @@ ros::Time FMU::doStep() {
 
   doStep_(stepSize_);
 
-  return getSimulationTimeInternal();
+  return getSimTimeForROS();
 }
 
 ros::Time FMU::doStep(const ros::Duration& stepSize) {
@@ -344,7 +345,7 @@ ros::Time FMU::doStep(const ros::Duration& stepSize) {
 
   doStep_(stepSize);
 
-  return getSimulationTimeInternal();
+  return getSimTimeForROS();
 }
 
 ros::Time FMU::doStepsUntil(const ros::Time& simulationTime) {
@@ -352,7 +353,7 @@ ros::Time FMU::doStepsUntil(const ros::Time& simulationTime) {
     throw std::runtime_error("FMU is still in initialization mode!");
   }
 
-  fmi2_real_t targetFMUTime = (simulationTime - fmuTimeOffset_).toSec();
+  fmi2_real_t targetFMUTime = (simulationTime - rosTimeOffset_).toSec();
   if (targetFMUTime < fmuTime_ - stepSize_.toSec() / 2.0) {  // Subtract stepSize/2 for rounding.
     ROS_ERROR("Given time %f is before current simulation time %f!", targetFMUTime, fmuTime_);
     throw std::invalid_argument("Given time is before current simulation time!");
@@ -362,7 +363,7 @@ ros::Time FMU::doStepsUntil(const ros::Time& simulationTime) {
     doStep_(stepSize_);
   }
 
-  return getSimulationTimeInternal();
+  return getSimTimeForROS();
 }
 
 
@@ -371,7 +372,7 @@ ros::Time FMU::getSimulationTime() const {
     throw std::runtime_error("FMU is still in initialization mode!");
   }
 
-  return getSimulationTimeInternal();
+  return getSimTimeForROS();
 }
 
 

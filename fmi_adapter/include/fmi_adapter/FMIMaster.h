@@ -117,7 +117,7 @@ class FMIMaster {
         }
     }
 
-    ROS_WARN("Checking connections between components...\n");
+    ROS_WARN("Checking connections between components...");
     propagateResults();
 
   }
