@@ -31,6 +31,7 @@ class FMIMaster {
   nlohmann::json jsonConfig{};
 
   void propagateResults() {
+    ROS_WARN("propagate results ...");
     try {
       for (auto [sourceName, sinkArray] : jsonConfig["connections"].items()) {
         const auto sourceName_fmu = sourceName.substr(0, sourceName.find('.'));
@@ -40,6 +41,7 @@ class FMIMaster {
         for (auto sinkName : sinkArray) {
           const auto sinkName_fmu = sinkName.get<std::string>().substr(0, sinkName.get<std::string>().find('.'));
           const auto sinkName_signal = sinkName.get<std::string>().substr(sinkName.get<std::string>().find('.') + 1);
+              ROS_WARN("b");
           slave_fmus[sinkName_fmu]->setInputValue(sinkName_signal, ros::Time::now(), result);
         }
       }
@@ -47,9 +49,10 @@ class FMIMaster {
       ROS_FATAL(
           "There seems to be a problem with your inter-component connections. "
           "Please make sure you named them as in the FMUS.\n Error: %s", oor.what());
-     } catch (...) {
-       ROS_FATAL("Unknown Error while propagating the results.");
-     }
+    } catch (...) {
+      ROS_FATAL("Unknown Error while propagating the results.");
+    }
+    ROS_WARN("done.");
   }
 
   void createSlave(std::string unique_name, std::string fmuPath) {
@@ -60,7 +63,7 @@ class FMIMaster {
     }
 
     // Create a new FMU and insert it into the list of slaves
-    slave_fmus.insert(std::make_pair(unique_name, std::make_unique<FMU>(fmuPath, ros::Duration(stepSize))));
+    slave_fmus.insert(std::make_pair(unique_name, std::make_unique<FMU>(unique_name, fmuPath, ros::Duration(stepSize))));
     ROS_INFO("Added new Slave FMU to the Master! Path: %s", fmuPath.c_str());
   }
 
@@ -117,8 +120,7 @@ class FMIMaster {
         }
     }
 
-    ROS_WARN("Checking connections between components...");
-    propagateResults();
+    // TODO: Check connections between FMUS (names, types)
 
   }
 
@@ -145,11 +147,7 @@ class FMIMaster {
   void doStepsUntil(const ros::Time simulationTime) {
     for (auto& [fmuname, fmuptr] : slave_fmus) {
       (void)fmuname;  // variable 'name' is currently unused
-
-      ROS_WARN("dbg: doing steps for slave");
       fmuptr->doStepsUntil(simulationTime);
-      ROS_WARN("dbg: done");
-
     }
 
     propagateResults();
@@ -164,6 +162,7 @@ class FMIMaster {
   }
 
   void setInputValue(std::string fmuName, std::string portName, ros::Time when, valueVariantTypes value) {
+    ROS_WARN("a");
     slave_fmus[fmuName]->setInputValue(portName, when, value);
     return;
   }

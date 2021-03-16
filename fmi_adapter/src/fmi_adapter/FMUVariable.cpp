@@ -79,8 +79,18 @@ valueVariantTypes FMUVariable::getValue() {
       ret = (bool)(value == fmi2_true ? true : false);
       break;
     }
-    default:
+    case fmi2_base_type_enum: {
+      fmi2_integer_t value = 0;
+      fmi2_import_get_integer(parent_fmu, &valueReference, 1, &value);
+      ret = (int)value;
+      ROS_WARN("set value enum %s: %d", this->getNameRos().c_str(), value);
       break;
+    }
+    case fmi2_base_type_str:
+      throw std::invalid_argument("fmu variable " + this->getNameRos() + " is of unsupported type: fmi2_base_type_str");
+
+    default:
+      throw std::invalid_argument("fmu variable " + this->getNameRos() + " is of unsupported type: unknown");
   }
 
   return ret;
@@ -94,22 +104,37 @@ void FMUVariable::setValue(valueVariantTypes values) {
 
   switch (rawType) {
     case fmi2_base_type_real: {
+      // ROS_WARN("set real...");
       fmi2_real_t value = std::get<double>(values);
       fmi2_import_set_real(parent_fmu, &valueReference, 1, &value);
+      // ROS_WARN("done.");
       break;
     }
     case fmi2_base_type_int: {
+      // ROS_WARN("set int...");
       fmi2_integer_t value = std::get<int>(values);
       fmi2_import_set_integer(parent_fmu, &valueReference, 1, &value);
+      // ROS_WARN("done.");
       break;
     }
     case fmi2_base_type_bool: {
+      // ROS_WARN("set bool...");
       fmi2_boolean_t value = std::get<bool>(values) == true ? fmi2_true : fmi2_false;
       fmi2_import_set_boolean(parent_fmu, &valueReference, 1, &value);
+      // ROS_WARN("done.");
       break;
     }
-    default:
+    case fmi2_base_type_enum: {
+      ROS_WARN("set enum start");
+      fmi2_integer_t value = std::get<int>(values);
+      fmi2_import_set_integer(parent_fmu, &valueReference, 1, &value);
+      ROS_WARN("set enum end. var: %s, val: %d", this->getNameRos().c_str(), value);
       break;
+    }
+    case fmi2_base_type_str:
+      throw std::invalid_argument("fmu variable " + this->getNameRos() + " is of unsupported type: fmi2_base_type_str");
+    default:
+      throw std::invalid_argument("fmu variable " + this->getNameRos() + " is of unsupported type: unknown");
   }
 }
 

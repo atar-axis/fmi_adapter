@@ -55,8 +55,8 @@ class FMU {
  public:
   // This ctor creates an instance using the FMU from the given path. If the step-size argument
   // is zero, the default experiment step-size given in the FMU is used.
-  explicit FMU(const std::string& fmuPath, ros::Duration stepSize = ros::Duration(0.0), bool interpolateInput = true,
-               const std::string& tmpPath = "");
+  explicit FMU(const std::string& fmuName, const std::string& fmuPath, ros::Duration stepSize = ros::Duration(0.0),
+               bool interpolateInput = true, const std::string& tmpPath = "");
 
   FMU(const FMU& other) = delete;
   FMU& operator=(const FMU&) = delete;
@@ -101,7 +101,7 @@ class FMU {
   // Advances the simulation of the wrapped FMU until the given point in time (modulo step-size).
   // In detail, the simulation is performed iteratively using the configured step-size. Before each simulation step
   // the relevant input values passed previously by setInputValue(..) are set depending on the given timestamps.
-  ros::Time doStepsUntil(const ros::Time& simulationTime);
+  ros::Time doStepsUntil(const ros::Time simulationTime);
 
   // Returns the current simulation time.
   ros::Time getSimulationTime() const;
@@ -123,6 +123,8 @@ class FMU {
   fmi2_import_t* getRawFMU();
 
  private:
+  // Name of the FMU being wrapped by this instance.
+  const std::string fmuName_;
   // Path of the FMU being wrapped by this instance.
   const std::string fmuPath_;
   // Step size for the FMU simulation
@@ -139,7 +141,7 @@ class FMU {
   // The internal FMU simulation time
   double fmuTime_{0.0};
   // Offset between the FMU's time and the ROS simulation time, used for doStep*(..) and setValue(..)
-  ros::Duration rosTimeOffset_{0.0};
+  ros::Time rosStartTime_{0.0};
   // Stores the FMU Variables
   std::map<std::string, std::shared_ptr<FMUVariable>> cachedVariables_{};
   // Stores the mapping from timestamps to variable values for the FMU simulation
@@ -158,7 +160,7 @@ class FMU {
   // Performs one simulation step using the given step size. Argument and initialization mode not checked.
   void doStep_(const ros::Duration& stepSize);
   // Returns the current simulation time w.r.t. the time where the FMU simulation started in ROS.
-  ros::Time getSimTimeForROS_() const { return ros::Time(fmuTime_) + rosTimeOffset_; }
+  ros::Time getSimTimeForROS_() const { return rosStartTime_ + ros::Duration(fmuTime_); }
   // Fill the FMU Variables Map
   void cacheVariables_();
 };

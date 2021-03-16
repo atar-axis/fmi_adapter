@@ -82,7 +82,7 @@ int main(int argc, char** argv) {
   master.config(jsonConfig_file);
   master.initSlavesFromROS(n);
 
-  ROS_WARN("master inputs:");
+ROS_WARN("master inputs:");
   std::map<std::string, ros::Subscriber> subscribers;
   auto masterIn = master.getInputs();
 
@@ -91,7 +91,7 @@ int main(int argc, char** argv) {
     const auto& port_name = identifier.second;
     const auto rosName = fmu_name + "___" + port_name;
 
-    ROS_WARN("* %s->%s", fmu_name.c_str(), port_name.c_str());
+ROS_WARN("* %s->%s", fmu_name.c_str(), port_name.c_str());
 
     // get a empty dummy value from the variable (which is a std::variant) to deduce the type of it
     // then subscribe to a topic and forward incoming messages to the master
@@ -108,7 +108,7 @@ int main(int argc, char** argv) {
         elVal);
   }
 
-  ROS_WARN("master outputs:");
+ROS_WARN("master outputs:");
   std::map<std::string, ros::Publisher> publishers;
   auto masterOut = master.getOutputs();
 
@@ -118,7 +118,7 @@ int main(int argc, char** argv) {
     const auto& port_name = identifier.second;
     const auto rosName = fmu_name + "___" + port_name;
 
-    ROS_WARN("* %s->%s", fmu_name.c_str(), port_name.c_str());
+ROS_WARN("* %s->%s", fmu_name.c_str(), port_name.c_str());
 
     auto elVal = element->getValue();
     std::visit(
@@ -132,7 +132,7 @@ int main(int argc, char** argv) {
 
   master.exitInitModeSlaves(ros::Time::now());
 
-  ROS_WARN("creating timer...");
+ROS_WARN("creating timer...");
 
   //! You need to assign the created timer to an variable - why?
   auto timer = n.createTimer(ros::Duration(updatePeriod), [&](const ros::TimerEvent& event) {
@@ -143,8 +143,7 @@ int main(int argc, char** argv) {
     if (simTime < event.current_expected) {
       master.doStepsUntil(event.current_expected);
     } else if (simTime > event.current_expected) {
-      ROS_WARN("Simulation time %f is greater than timer's time %f. Is your step size to large?",
-               master.getSimulationTime().toSec(), event.current_expected.toSec());
+ROS_WARN("Simulation time %f is greater than timer's time %f. Is your step size to large?", master.getSimulationTime().toSec(), event.current_expected.toSec());
     }
     // propagate the output values to the publishers
     for (auto const& [identifier, element] : masterOut) {

@@ -96,15 +96,17 @@ uint8_t FMU::convert<fmi2_boolean_t, uint8_t>(fmi2_boolean_t value) {
 }
 
 /**
- * @brief Construction of a new FMU::FMU object
+ * @brief Constructor for a FMU::FMU object
  *
  * @param fmuPath
  * @param stepSize
  * @param interpolateInput
  * @param tmpPath
  */
-FMU::FMU(const std::string& fmuPath, ros::Duration stepSize, bool interpolateInput, const std::string& tmpPath)
-    : fmuPath_(fmuPath), stepSize_(stepSize), interpolateInput_(interpolateInput), tmpPath_(tmpPath) {
+FMU::FMU(const std::string& fmuName, const std::string& fmuPath, ros::Duration stepSize, bool interpolateInput,
+         const std::string& tmpPath)
+    : fmuName_(fmuName), fmuPath_(fmuPath), stepSize_(stepSize), interpolateInput_(interpolateInput),
+      tmpPath_(tmpPath) {
   if (stepSize == ros::Duration(0.0)) {
     // Use step-size from FMU. See end of ctor.
   } else if (stepSize < ros::Duration(0.0)) {
@@ -190,6 +192,7 @@ FMU::FMU(const std::string& fmuPath, ros::Duration stepSize, bool interpolateInp
   }
 
   // caching the FMU variables once, just update them later on
+  ROS_WARN("caching variables for fmu: %s", fmuName_.c_str());
   cacheVariables_();
 }
 
@@ -266,7 +269,7 @@ void FMU::exitInitializationMode(ros::Time externalStartTime) {
   // because the FMUs are loaded a bit later. Therefore, remember the time
   // where it started in order to know how much to calculate later on
   // in doStepsUtil (since the ros time is passed, not the fmu time)
-  rosTimeOffset_ = externalStartTime - ros::Time(0.0);
+  rosStartTime_ = externalStartTime;
 
   // TODO: What is it good for? Document!
   for (auto& [name, variable] :
@@ -276,11 +279,12 @@ void FMU::exitInitializationMode(ros::Time externalStartTime) {
     std::map<ros::Time, valueVariantTypes>& inputValues = inputValuesByVariable_[variable->getVariablePointerRaw()];
     if (inputValues.empty() || inputValues.begin()->first > externalStartTime) {
       auto value = variable->getValue();
+      ROS_WARN("variable %s, idx: %d", variable->getNameRos().c_str(), variable->getValue().index());
       inputValues[externalStartTime] = value;
     }
   }
 
-  ROS_WARN("fmu is leaving init mode at %ld", rosTimeOffset_);
+ROS_WARN("fmu is leaving init mode at %f", rosStartTime_.toSec());
 }
 
 void FMU::doStep_(const ros::Duration& stepSize) {
@@ -290,31 +294,35 @@ void FMU::doStep_(const ros::Duration& stepSize) {
     std::map<ros::Time, valueVariantTypes>& inputValuesByTime =
         inputValuesByVariable_[variable->getVariablePointerRaw()];
 
+
+
     // Make sure that there are InputValues, at least for the simulation start
-    assert(!inputValuesByTime.empty() && (inputValuesByTime.begin()->first - rosTimeOffset_).toSec() <= fmuTime_);
+    assert(!inputValuesByTime.empty() && (inputValuesByTime.begin()->first - rosStartTime_).toSec() <= fmuTime_);
 
     // Remove Values in the past
     while (inputValuesByTime.size() >= 2 &&
-           (std::next(inputValuesByTime.begin())->first - rosTimeOffset_).toSec() <= fmuTime_) {
+           (std::next(inputValuesByTime.begin())->first - rosStartTime_).toSec() <= fmuTime_) {
       inputValuesByTime.erase(inputValuesByTime.begin());
     }
 
     // Make sure that there are STILL InputValues, at least for the simulation start
-    assert(!inputValuesByTime.empty() && (inputValuesByTime.begin()->first - rosTimeOffset_).toSec() <= fmuTime_);
+    assert(!inputValuesByTime.empty() && (inputValuesByTime.begin()->first - rosStartTime_).toSec() <= fmuTime_);
 
     valueVariantTypes value = inputValuesByTime.begin()->second;
 
     // TODO: Interpolation
     // if (interpolateInput_ && inputValues.size() > 1) {
-    //   double t0 = (inputValues.begin()->first - rosTimeOffset_).toSec();
-    //   double t1 = (std::next(inputValues.begin())->first - rosTimeOffset_).toSec();
+    //   double t0 = (inputValues.begin()->first - rosStartTime_).toSec();
+    //   double t1 = (std::next(inputValues.begin())->first - rosStartTime_).toSec();
     //   double weight = (t1 - fmuTime_) / (t1 - t0);
     //   valueVariantTypes x0 = value;
     //   valueVariantTypes x1 = std::next(inputValues.begin())->second;
     //   value = weight * x0 + (1.0 - weight) * x1;
     // }
 
+//ROS_WARN("setting value (with index %d) of variable %s : %s...", value.index(), fmuPath_.c_str(), variable->getNameRos().c_str());
     variable->setValue(value);
+//ROS_WARN("done.");
   }
 
   const fmi2_boolean_t doStep = fmi2_true;
@@ -348,12 +356,14 @@ ros::Time FMU::doStep(const ros::Duration& stepSize) {
   return getSimTimeForROS_();
 }
 
-ros::Time FMU::doStepsUntil(const ros::Time& simulationTime) {
+ros::Time FMU::doStepsUntil(const ros::Time rosUntilTime) {
   if (inInitializationMode_) {
     throw std::runtime_error("FMU is still in initialization mode!");
   }
 
-  fmi2_real_t targetFMUTime = (simulationTime - rosTimeOffset_).toSec();
+  ROS_WARN("performing steps until %f, fmu leaved init mode at: %f ...", rosUntilTime.toSec(), rosStartTime_.toSec());
+
+  double targetFMUTime = (rosUntilTime - rosStartTime_).toSec();
   if (targetFMUTime < fmuTime_ - stepSize_.toSec() / 2.0) {  // Subtract stepSize/2 for rounding.
     ROS_ERROR("Given time %f is before current simulation time %f!", targetFMUTime, fmuTime_);
     throw std::invalid_argument("Given time is before current simulation time!");
@@ -362,6 +372,8 @@ ros::Time FMU::doStepsUntil(const ros::Time& simulationTime) {
   while (fmuTime_ + stepSize_.toSec() / 2.0 < targetFMUTime) {
     doStep_(stepSize_);
   }
+
+ROS_WARN("done.");
 
   return getSimTimeForROS_();
 }
@@ -390,6 +402,7 @@ void FMU::_setInputValueRaw(fmi2_import_variable_t* variable, ros::Time time, va
   }
 
   std::string name = rosifyName(fmi2_import_get_variable_name(variable));
+
   inputValuesByVariable_[variable].insert(std::make_pair(time, value));
 }
 
@@ -408,6 +421,7 @@ void FMU::setInputValue(std::string variableName, ros::Time time, valueVariantTy
     throw std::invalid_argument("Unknown variable name!");
   }
 
+ROS_WARN("adding input value (time: %f) for variable %s. active type: %d", time.toSec(), variableName.c_str(), value.index());
   _setInputValueRaw(variable, time, value);
 }
 
@@ -450,7 +464,26 @@ void FMU::cacheVariables_() {
     fmi2_import_variable_t* variable = fmi2_import_get_variable(variableList, index);
     std::string variableName = std::string(fmi2_import_get_variable_name(variable));
     cachedVariables_.insert(std::make_pair(variableName, std::make_shared<FMUVariable>(fmu_, variable)));
-    ROS_WARN("added %s", variableName.c_str());
+
+// DEBUG START
+switch(fmi2_import_get_variable_base_type(variable)){
+  case fmi2_base_type_real:
+    ROS_WARN("added: var %s, type: real", variableName.c_str());
+    break;
+  case fmi2_base_type_int:
+    ROS_WARN("added: var %s, type: int", variableName.c_str());
+    break;
+  case fmi2_base_type_bool:
+    ROS_WARN("added: var %s, type: bool", variableName.c_str());
+    break;
+  case fmi2_base_type_enum:
+    ROS_WARN("added: var %s, type: enum", variableName.c_str());
+    break;
+  case fmi2_base_type_str:
+    ROS_WARN("added: var %s, type: string", variableName.c_str());
+    break;
+}
+// DEBUG END
   }
 
   fmi2_import_free_variable_list(variableList);
