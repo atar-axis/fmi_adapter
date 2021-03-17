@@ -31,18 +31,21 @@ class FMIMaster {
   nlohmann::json jsonConfig{};
 
   void propagateResults() {
-    ROS_WARN("propagate results ...");
+    // ROS_WARN("propagating results ...");
     try {
       for (auto [sourceName, sinkArray] : jsonConfig["connections"].items()) {
         const auto sourceName_fmu = sourceName.substr(0, sourceName.find('.'));
         const auto sourceName_signal = sourceName.substr(sourceName.find('.') + 1);
         const auto result = slave_fmus[sourceName_fmu]->getCachedVariable(sourceName_signal)->getValue();
 
+        // ROS_WARN("\tfrom fmu %s signal %s", sourceName_fmu.c_str(), sourceName_signal.c_str());
+
         for (auto sinkName : sinkArray) {
           const auto sinkName_fmu = sinkName.get<std::string>().substr(0, sinkName.get<std::string>().find('.'));
           const auto sinkName_signal = sinkName.get<std::string>().substr(sinkName.get<std::string>().find('.') + 1);
-              ROS_WARN("b");
           slave_fmus[sinkName_fmu]->setInputValue(sinkName_signal, ros::Time::now(), result);
+
+          // ROS_WARN("\t\tto fmu %s signal %s", sinkName_fmu.c_str(), sinkName_signal.c_str());
         }
       }
     } catch (const std::out_of_range& oor) {
@@ -52,7 +55,7 @@ class FMIMaster {
     } catch (...) {
       ROS_FATAL("Unknown Error while propagating the results.");
     }
-    ROS_WARN("done.");
+    //ROS_WARN("done.");
   }
 
   void createSlave(std::string unique_name, std::string fmuPath) {
@@ -117,6 +120,7 @@ class FMIMaster {
           ROS_FATAL("exposed %s.%s", exposedFmu.c_str(), signalName.c_str());
         } catch (...) {
           ROS_FATAL("error while exposing %s.%s", exposedFmu.c_str(), signalName.c_str());
+          throw;
         }
     }
 
@@ -162,7 +166,6 @@ class FMIMaster {
   }
 
   void setInputValue(std::string fmuName, std::string portName, ros::Time when, valueVariantTypes value) {
-    ROS_WARN("a");
     slave_fmus[fmuName]->setInputValue(portName, when, value);
     return;
   }

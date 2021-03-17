@@ -361,7 +361,10 @@ ros::Time FMU::doStepsUntil(const ros::Time rosUntilTime) {
     throw std::runtime_error("FMU is still in initialization mode!");
   }
 
-  ROS_WARN("performing steps until %f, fmu leaved init mode at: %f ...", rosUntilTime.toSec(), rosStartTime_.toSec());
+  //ROS_WARN("doing steps in %s", this->fmuName_.c_str());
+
+  // ROS_WARN("performing steps until %f, fmu leaved init mode at: %f ...", rosUntilTime.toSec(),
+  // rosStartTime_.toSec());
 
   double targetFMUTime = (rosUntilTime - rosStartTime_).toSec();
   if (targetFMUTime < fmuTime_ - stepSize_.toSec() / 2.0) {  // Subtract stepSize/2 for rounding.
@@ -373,7 +376,7 @@ ros::Time FMU::doStepsUntil(const ros::Time rosUntilTime) {
     doStep_(stepSize_);
   }
 
-ROS_WARN("done.");
+//ROS_WARN("done.");
 
   return getSimTimeForROS_();
 }
@@ -421,7 +424,7 @@ void FMU::setInputValue(std::string variableName, ros::Time time, valueVariantTy
     throw std::invalid_argument("Unknown variable name!");
   }
 
-ROS_WARN("adding input value (time: %f) for variable %s. active type: %d", time.toSec(), variableName.c_str(), value.index());
+  // ROS_WARN("adding input value (time: %f) for variable %s. active type: %d", time.toSec(), variableName.c_str(), value.index());
   _setInputValueRaw(variable, time, value);
 }
 
@@ -466,23 +469,23 @@ void FMU::cacheVariables_() {
     cachedVariables_.insert(std::make_pair(variableName, std::make_shared<FMUVariable>(fmu_, variable)));
 
 // DEBUG START
-switch(fmi2_import_get_variable_base_type(variable)){
-  case fmi2_base_type_real:
-    ROS_WARN("added: var %s, type: real", variableName.c_str());
-    break;
-  case fmi2_base_type_int:
-    ROS_WARN("added: var %s, type: int", variableName.c_str());
-    break;
-  case fmi2_base_type_bool:
-    ROS_WARN("added: var %s, type: bool", variableName.c_str());
-    break;
-  case fmi2_base_type_enum:
-    ROS_WARN("added: var %s, type: enum", variableName.c_str());
-    break;
-  case fmi2_base_type_str:
-    ROS_WARN("added: var %s, type: string", variableName.c_str());
-    break;
-}
+// switch(fmi2_import_get_variable_base_type(variable)){
+//   case fmi2_base_type_real:
+//     ROS_WARN("added: var %s, type: real", variableName.c_str());
+//     break;
+//   case fmi2_base_type_int:
+//     ROS_WARN("added: var %s, type: int", variableName.c_str());
+//     break;
+//   case fmi2_base_type_bool:
+//     ROS_WARN("added: var %s, type: bool", variableName.c_str());
+//     break;
+//   case fmi2_base_type_enum:
+//     ROS_WARN("added: var %s, type: enum", variableName.c_str());
+//     break;
+//   case fmi2_base_type_str:
+//     ROS_WARN("added: var %s, type: string", variableName.c_str());
+//     break;
+// }
 // DEBUG END
   }
 
