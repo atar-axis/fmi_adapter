@@ -279,7 +279,7 @@ void FMU::exitInitializationMode(ros::Time externalStartTime) {
     std::map<ros::Time, valueVariantTypes>& inputValues = inputValuesByVariable_[variable->getVariablePointerRaw()];
     if (inputValues.empty() || inputValues.begin()->first > externalStartTime) {
       auto value = variable->getValue();
-      ROS_WARN("variable %s, idx: %d", variable->getNameRos().c_str(), variable->getValue().index());
+      //ROS_WARN("variable %s, idx: %d", variable->getNameRos().c_str(), variable->getValue().index());
       inputValues[externalStartTime] = value;
     }
   }
