@@ -138,6 +138,8 @@ class FMIMaster {
 
   void exitInitModeSlaves(ros::Time simulationTime) {
     // Complete the Initialization, i.e. set the starttime
+
+    ROS_WARN("[ Master | Exiting Init Mode for Slaves] Started at %f...", simulationTime.toSec());
     for (auto& [fmuname, fmuptr] : slave_fmus) {
       (void)fmuname;  // variable 'name' is currently unused
 
@@ -145,12 +147,17 @@ class FMIMaster {
       // TODO: Maybe we should do some work here instead of doing it in the slaves?
       fmuptr->exitInitializationMode(simulationTime);
     }
-    ROS_WARN("Exiting Init Mode done!");
+    ROS_WARN("[ Master | Exiting Init Mode for Slaves] done!");
   }
 
   void doStepsUntil(const ros::Time simulationTime) {
+
+    // ROS_WARN("master: doing steps until...");
+
     for (auto& [fmuname, fmuptr] : slave_fmus) {
       (void)fmuname;  // variable 'name' is currently unused
+
+      // ROS_WARN("master: doing steps until in slave \"%s\"...", fmuname.c_str());
       fmuptr->doStepsUntil(simulationTime);
     }
 

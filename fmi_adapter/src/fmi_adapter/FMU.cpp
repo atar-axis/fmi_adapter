@@ -288,13 +288,13 @@ ROS_WARN("fmu is leaving init mode at %f", rosStartTime_.toSec());
 }
 
 void FMU::doStep_(const ros::Duration& stepSize) {
+  assert(fmu_ != nullptr);
+
   for (auto& [name, variable] :
        cachedVariables_ | boost::adaptors::filtered(fmi_adapter::FMUVariable::varInput_filter)) {
     (void)name;
     std::map<ros::Time, valueVariantTypes>& inputValuesByTime =
         inputValuesByVariable_[variable->getVariablePointerRaw()];
-
-
 
     // Make sure that there are InputValues, at least for the simulation start
     assert(!inputValuesByTime.empty() && (inputValuesByTime.begin()->first - rosStartTime_).toSec() <= fmuTime_);
@@ -320,17 +320,20 @@ void FMU::doStep_(const ros::Duration& stepSize) {
     //   value = weight * x0 + (1.0 - weight) * x1;
     // }
 
-//ROS_WARN("setting value (with index %d) of variable %s : %s...", value.index(), fmuPath_.c_str(), variable->getNameRos().c_str());
+    // ROS_WARN("setting value (variant index %d) of variable %s : %s...", value.index(), fmuPath_.c_str(), variable->getNameRos().c_str());
     variable->setValue(value);
-//ROS_WARN("done.");
+    // ROS_WARN("done.");
   }
 
   const fmi2_boolean_t doStep = fmi2_true;
+  // ROS_WARN("calling fmi2_import_do_step, current communication point: %f, stepsize: %f", fmuTime_, stepSize.toSec());
   fmi2_status_t fmiStatus = fmi2_import_do_step(fmu_, fmuTime_, stepSize.toSec(), doStep);
   if (fmiStatus != fmi2_status_ok) {
     throw std::runtime_error("fmi2_import_do_step failed!");
   }
   fmuTime_ += stepSize.toSec();
+  // ROS_WARN("done.");
+
 }
 
 ros::Time FMU::doStep() {
@@ -373,6 +376,8 @@ ros::Time FMU::doStepsUntil(const ros::Time rosUntilTime) {
   }
 
   while (fmuTime_ + stepSize_.toSec() / 2.0 < targetFMUTime) {
+    // ROS_WARN("slave: doing a step until time is reached");
+
     doStep_(stepSize_);
   }
 

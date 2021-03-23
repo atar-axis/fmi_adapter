@@ -130,6 +130,7 @@ int main(int argc, char** argv) {
         elVal);
   }
 
+  // ROS_WARN("[ node | exiting init mode ] time: %f", ros::Time::now().toSec());
   master.exitInitModeSlaves(ros::Time::now());
 
   ROS_WARN("creating timer...");
@@ -141,6 +142,7 @@ int main(int argc, char** argv) {
     auto simTime = master.getSimulationTime();
 
     if (simTime < event.current_expected) {
+      // ROS_WARN("node: doing steps in master...");
       master.doStepsUntil(event.current_expected);
     } else if (simTime > event.current_expected) {
       ROS_WARN("Simulation time %f is greater than timer's time %f. Is your step size to large?", master.getSimulationTime().toSec(), event.current_expected.toSec());
@@ -150,6 +152,8 @@ int main(int argc, char** argv) {
       const auto& fmu_name = identifier.first;
       const auto& port_name = identifier.second;
       const auto rosName = fmu_name + "___" + port_name;
+
+      // ROS_WARN("processing output: %s", rosName.c_str());
 
       auto elVal = element->getValue();
       std::visit(

@@ -1,8 +1,9 @@
 <launch>
   <arg name="json_config_path" />
 
-  <node name="fmi_adapter_node" pkg="fmi_adapter" type="node" output="screen">
+  <node name="fmi_adapter_node" pkg="fmi_adapter" type="node" output="screen" launch-prefix="bash -c 'sleep 15; $0 $@' ">
     <param name="json_config_path" value="$(arg json_config_path)" />
+    <param name="use_sim_time" value="true" />
   </node>
 
 </launch>

@@ -110,12 +110,19 @@ void FMUVariable::setValue(valueVariantTypes values) {
     }
     case fmi2_base_type_int: {
       fmi2_integer_t value = std::get<int>(values);
-      fmi2_import_set_integer(parent_fmu, &valueReference, 1, &value);
-      // DEBUG START
+
+      auto ret = fmi2_import_set_integer(parent_fmu, &valueReference, 1, &value);
+      // if (ret != fmi2_status_ok) {
+      //   ROS_WARN("error while setting value");
+      // } else {
+      //   ROS_WARN("setting value returned: ok");
+      // }
+
+      // // DEBUG START
       // fmi2_integer_t valueBack = 0;
       // fmi2_import_get_integer(parent_fmu, &valueReference, 1, &valueBack);
       // ROS_WARN("setting %s as int: %d (got %d)", rawName.c_str(), value, valueBack);
-      // DEBUG END
+      // // DEBUG END
       break;
     }
     case fmi2_base_type_bool: {
