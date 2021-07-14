@@ -229,8 +229,8 @@ FMU::~FMU() {
 std::string FMU::rosifyName(const std::string& name) {
   std::string result = name;
 
-  boost::regex reInvalidCharacters("[^a-zA-Z0-9_]+");
-  boost::regex_replace(name, reInvalidCharacters, result);
+  boost::regex reInvalidCharacters("[^a-zA-Z0-9_]");
+  result = boost::regex_replace(name, reInvalidCharacters, "_");
 
   return result;
 }
@@ -447,7 +447,7 @@ void FMU::initializeFromROSParameters(const ros::NodeHandle& handle) {
     auto variableValue = variable->getValue();
 
     // call ROS::getParam on the active type, store the result in variableValue, if any
-    std::visit([handle, variable](auto& activeVariant) { handle.getParam(variable->getNameRaw(), activeVariant); },
+    std::visit([handle, variable](auto& activeVariant) { handle.getParam(variable->getNameRos(), activeVariant); },
                variableValue);
 
     // write back the ROS param value to the variable
